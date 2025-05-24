@@ -391,6 +391,7 @@ defmodule ElixirScope.Config do
     # Only allow runtime updates to specific safe configuration paths
     case path do
       [:ai, :planning, :sampling_rate] -> true
+      [:ai, :planning, :default_strategy] -> true
       [:capture, :processing, :batch_size] -> true
       [:capture, :processing, :flush_interval] -> true
       [:interface, :query_timeout] -> true

@@ -3,10 +3,19 @@ defmodule ElixirScopeTest do
 
   doctest ElixirScope
 
+  # Helper to safely stop the application - handles cases where app isn't started
+  defp safe_stop_application do
+    case Application.stop(:elixir_scope) do
+      :ok -> :ok
+      {:error, {:not_started, _}} -> :ok
+      error -> error
+    end
+  end
+
   describe "application lifecycle" do
     test "starts and stops successfully" do
       # Ensure application is stopped initially
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       
       # Start ElixirScope
       assert :ok = ElixirScope.start()
@@ -18,7 +27,7 @@ defmodule ElixirScopeTest do
     end
 
     test "starts with custom options" do
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       
       assert :ok = ElixirScope.start(strategy: :full_trace, sampling_rate: 0.8)
       assert ElixirScope.running?() == true
@@ -38,7 +47,7 @@ defmodule ElixirScopeTest do
     end
 
     test "double start is safe" do
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       
       assert :ok = ElixirScope.start()
       assert :ok = ElixirScope.start()  # Should not fail
@@ -48,7 +57,7 @@ defmodule ElixirScopeTest do
     end
 
     test "stop when not running is safe" do
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       
       # Stop when not running should be safe
       assert :ok = ElixirScope.stop()
@@ -58,7 +67,7 @@ defmodule ElixirScopeTest do
 
   describe "status and monitoring" do
     setup do
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       :ok = ElixirScope.start()
       on_exit(fn -> ElixirScope.stop() end)
       :ok
@@ -106,7 +115,7 @@ defmodule ElixirScopeTest do
 
   describe "configuration management" do
     setup do
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       :ok = ElixirScope.start()
       on_exit(fn -> ElixirScope.stop() end)
       :ok
@@ -164,7 +173,7 @@ defmodule ElixirScopeTest do
 
   describe "event querying (not yet implemented)" do
     setup do
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       :ok = ElixirScope.start()
       on_exit(fn -> ElixirScope.stop() end)
       :ok
@@ -208,7 +217,7 @@ defmodule ElixirScopeTest do
 
   describe "AI and instrumentation (not yet implemented)" do
     setup do
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       :ok = ElixirScope.start()
       on_exit(fn -> ElixirScope.stop() end)
       :ok
@@ -234,7 +243,7 @@ defmodule ElixirScopeTest do
 
   describe "start option handling" do
     test "handles strategy option" do
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       
       assert :ok = ElixirScope.start(strategy: :minimal)
       
@@ -245,7 +254,7 @@ defmodule ElixirScopeTest do
     end
 
     test "handles sampling_rate option" do
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       
       assert :ok = ElixirScope.start(sampling_rate: 0.3)
       
@@ -256,7 +265,7 @@ defmodule ElixirScopeTest do
     end
 
     test "handles modules option (placeholder)" do
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       
       # Should not fail, but will log that it's not yet implemented
       assert :ok = ElixirScope.start(modules: [SomeModule])
@@ -265,7 +274,7 @@ defmodule ElixirScopeTest do
     end
 
     test "handles exclude_modules option (placeholder)" do
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       
       # Should not fail, but will log that it's not yet implemented
       assert :ok = ElixirScope.start(exclude_modules: [SomeModule])
@@ -274,7 +283,7 @@ defmodule ElixirScopeTest do
     end
 
     test "ignores unknown options" do
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       
       # Should not fail, but will log warning
       assert :ok = ElixirScope.start(unknown_option: :value)
@@ -283,7 +292,7 @@ defmodule ElixirScopeTest do
     end
 
     test "handles multiple options" do
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       
       assert :ok = ElixirScope.start(
         strategy: :balanced,
@@ -301,7 +310,7 @@ defmodule ElixirScopeTest do
 
   describe "performance characteristics" do
     setup do
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       :ok = ElixirScope.start()
       on_exit(fn -> ElixirScope.stop() end)
       :ok
@@ -348,7 +357,7 @@ defmodule ElixirScopeTest do
 
   describe "edge cases and robustness" do
     test "handles rapid start/stop cycles" do
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       
       for _i <- 1..5 do
         assert :ok = ElixirScope.start()
@@ -359,7 +368,7 @@ defmodule ElixirScopeTest do
     end
 
     test "status handles application state changes" do
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       
       # Status when not running
       status1 = ElixirScope.status()
@@ -377,7 +386,7 @@ defmodule ElixirScopeTest do
     end
 
     test "configuration survives application restart" do
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       
       # Start with custom config
       :ok = ElixirScope.start(sampling_rate: 0.42)
@@ -397,7 +406,7 @@ defmodule ElixirScopeTest do
 
   describe "typespec validation" do
     test "start accepts valid options" do
-      :ok = Application.stop(:elixir_scope)
+      :ok = safe_stop_application()
       
       # Test valid option types
       valid_options = [

@@ -149,12 +149,13 @@ defmodule ElixirScope do
   """
   @spec status() :: map()
   def status do
+    is_running = running?()
     base_status = %{
-      running: Application.get_application(__MODULE__) != nil,
+      running: is_running,
       timestamp: ElixirScope.Utils.wall_timestamp()
     }
 
-    if base_status.running do
+    if is_running do
       base_status
       |> Map.put(:config, get_current_config())
       |> Map.put(:stats, get_performance_stats())
@@ -340,9 +341,15 @@ defmodule ElixirScope do
   """
   @spec running?() :: boolean()
   def running? do
-    case GenServer.whereis(ElixirScope.Config) do
+    # Check if the application is started by checking both the Application and the supervisor
+    case Application.get_application(__MODULE__) do
       nil -> false
-      _pid -> true
+      :elixir_scope ->
+        # Also check if the main supervisor is running
+        case Process.whereis(ElixirScope.Supervisor) do
+          nil -> false
+          _pid -> true
+        end
     end
   end
 
