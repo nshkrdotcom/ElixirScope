@@ -1,426 +1,335 @@
-# ElixirScope Layer 2: Asynchronous Processing & Correlation
+# ElixirScope Layer 2: Asynchronous Processing & Correlation - REFINED PLAN
 
-## Phase Overview
+## Current State Analysis (2024-01-26)
 
-**Goal**: Build an intelligent async pipeline from ring buffer to enriched storage with event correlation and causality tracking.
+**Foundation Status**: ✅ **EXCELLENT** - Layer 1 achieved 98.2% success (216/220 tests passing)
 
-**Status**: Ready to start (Foundation 98.2% complete)
-**Target Completion**: Next development phase
+### What We Have (Solid Foundation)
+1. **Events System**: 37/37 tests ✅ - Complete event structures with serialization
+2. **Ingestor System**: 21/21 tests ✅ - High-performance event ingestion  
+3. **Storage System**: 32/32 tests ✅ - ETS-based storage with indexing
+4. **Utils System**: 44/44 tests ✅ - Timestamps, IDs, data handling
+5. **Application System**: 37/37 tests ✅ - Complete lifecycle management
+6. **Ring Buffer**: 13/15 tests ✅ - Lock-free ring buffer (minor concurrency issues)
+
+### Current Test Failures (4 failures to address)
+1. **Config Performance** (2 tests): Configuration access/validation timing optimizations
+2. **Ring Buffer Concurrency** (1 test): Race conditions in concurrent read/write 
+3. **Ring Buffer Performance** (1 test): Batch read performance expectations
+
+### Architecture Readiness for Layer 2
+✅ **Data Access Layer**: Robust ETS storage with proper indexing  
+✅ **Ring Buffer**: Functional lock-free buffer (needs minor concurrency fixes)  
+✅ **Event Structures**: Complete event correlation metadata support  
+✅ **Application Framework**: Solid supervisor structure  
+✅ **Configuration**: Comprehensive config system  
+
+---
+
+## Phase Overview - TEST-DRIVEN LAYER 2
+
+**Goal**: Build intelligent async pipeline with event correlation and causality tracking
+
+**Strategy**: Test-First Development with focus on:
+- **Component Integration Testing**: Ensure Layer 1 + Layer 2 work seamlessly
+- **Performance Testing**: Meet 10k+ events/sec throughput targets 
+- **Correlation Accuracy**: 99%+ accuracy for causal relationships
+- **Fault Tolerance**: Graceful degradation under load
+
+**Target Completion**: 4-week development cycle
 **Expected Test Coverage**: 95%+ for all Layer 2 components
 
 ---
 
-## Architecture Design
+## Refined Architecture Design
 
 ### Layer 2 Components
 
 ```
 lib/elixir_scope/storage/
-├── pipeline_manager.ex        # Supervisor for async processing pipeline  
+├── pipeline_manager.ex        # Supervises async processing pipeline  
 ├── async_writer_pool.ex       # Worker pool for background event processing
 ├── event_correlator.ex        # Causal linking and correlation logic
-├── backpressure_manager.ex    # Overflow and degradation handling
-└── query_coordinator.ex       # Advanced querying with correlation
+├── backpressure_manager.ex    # Load management and adaptive degradation
+└── query_coordinator.ex       # Enhanced querying with correlation
 ```
 
-### Data Flow
+### Data Flow with Test Integration Points
 
 ```
 RingBuffer → PipelineManager → AsyncWriterPool → EventCorrelator → DataAccess
      ↓              ↓              ↓               ↓              ↓
- [Events]      [Batching]    [Processing]    [Correlation]   [Storage]
-                   ↓              ↓               ↓              ↓
-            BackpressureManager    ↓         [Enrichment]  [Indexing]
-                   ↓              ↓               ↓              ↓
-              [Flow Control] [Async Workers] [Causality]  [Retrieval]
+   [T1]           [T2]           [T3]            [T4]           [T5]
+ Buffer         Pipeline       Worker          Correlation    Storage
+  Tests          Tests          Tests           Tests         Tests
 ```
+
+**Test Integration Points**:
+- **T1**: Ring buffer integration tests with async processing
+- **T2**: Pipeline management and supervision tests
+- **T3**: Worker pool throughput and error handling tests
+- **T4**: Event correlation accuracy and performance tests
+- **T5**: End-to-end storage integration tests
 
 ---
 
-## Component Specifications
+## Test-Driven Implementation Plan
 
-### 1. PipelineManager
+### Phase 2.1: Pipeline Foundation (Week 1) - TDD Focus
 
-**Purpose**: Supervise and coordinate the async event processing pipeline
+**Test-First Approach**: Write tests before implementation for each component
 
-**Responsibilities**:
-- Manage AsyncWriterPool worker lifecycle
-- Coordinate between RingBuffer and processing workers
-- Monitor pipeline health and performance
-- Handle worker failures and restarts
-- Implement circuit breaker patterns
-
-**API Design**:
+#### 2.1.1 PipelineManager Test Suite (Day 1-2)
 ```elixir
-defmodule ElixirScope.Storage.PipelineManager do
-  use GenServer
-
-  # Public API
-  def start_link(opts \\ [])
-  def get_stats()
-  def adjust_worker_count(count)
-  def pause_processing()
-  def resume_processing()
-  def get_pipeline_health()
-
-  # Configuration
-  @default_worker_count 4
-  @health_check_interval 5_000
-  @max_queue_backlog 50_000
+# test/elixir_scope/storage/pipeline_manager_test.exs
+describe "PipelineManager" do
+  test "starts and manages worker pool lifecycle"
+  test "handles worker failures with restart strategies" 
+  test "monitors ring buffer consumption rates"
+  test "reports pipeline health metrics"
+  test "scales workers dynamically based on load"
+  test "gracefully shuts down workers on termination"
 end
 ```
 
-**Key Features**:
-- Dynamic worker scaling based on load
-- Health monitoring with metrics
-- Graceful degradation under stress
-- Integration with application supervision tree
+**Implementation Tests**:
+- **Unit Tests**: 15+ tests for supervision, lifecycle, health monitoring
+- **Integration Tests**: 8+ tests with RingBuffer and AsyncWriterPool
+- **Performance Tests**: Pipeline latency <10ms, worker startup <100ms
+- **Fault Tolerance Tests**: Worker crash recovery, supervision tree stability
 
-### 2. AsyncWriterPool
-
-**Purpose**: Background workers for processing events from ring buffer to storage
-
-**Responsibilities**:
-- Batch events from ring buffer for efficient processing
-- Transform and enrich events before storage
-- Handle failures with retry logic and dead letter queues
-- Maintain processing order for correlated events
-- Report processing metrics
-
-**API Design**:
+#### 2.1.2 AsyncWriterPool Test Suite (Day 3-4)
 ```elixir
-defmodule ElixirScope.Storage.AsyncWriterPool do
-  use GenServer
-
-  # Public API
-  def start_link(worker_count \\ 4)
-  def process_batch(events)
-  def get_worker_stats()
-  def adjust_batch_size(size)
-
-  # Worker configuration
-  @default_batch_size 1000
-  @max_batch_size 10_000
-  @processing_timeout 5_000
-  @retry_attempts 3
+# test/elixir_scope/storage/async_writer_pool_test.exs
+describe "AsyncWriterPool" do
+  test "processes events in batches efficiently"
+  test "maintains event ordering for correlated events"
+  test "handles batch processing failures gracefully"
+  test "reports worker performance metrics"
+  test "scales batch sizes based on throughput"
+  test "integrates with DataAccess for storage"
 end
 ```
 
-**Key Features**:
-- Configurable batch processing
-- Backpressure-aware event consumption
-- Error handling with retry logic
-- Performance metrics and monitoring
-- Order preservation for correlated events
+**Implementation Tests**:
+- **Unit Tests**: 20+ tests for batch processing, error handling, metrics
+- **Performance Tests**: >1000 events/sec per worker, batch efficiency
+- **Integration Tests**: 10+ tests with RingBuffer, DataAccess, PipelineManager
+- **Load Tests**: Sustained throughput, memory usage under load
 
-### 3. EventCorrelator
-
-**Purpose**: Implement causal linking and correlation logic for events
-
-**Responsibilities**:
-- Establish parent/child relationships between events
-- Track causality chains across process boundaries
-- Enrich events with correlation metadata
-- Build correlation indexes for fast querying
-- Handle correlation ID propagation
-
-**API Design**:
+#### 2.1.3 Integration Testing (Day 5)
+**End-to-End Pipeline Tests**:
 ```elixir
-defmodule ElixirScope.Storage.EventCorrelator do
-  use GenServer
+# test/elixir_scope/storage/pipeline_integration_test.exs
+describe "Layer 2 Pipeline Integration" do
+  test "events flow from RingBuffer to DataAccess via async pipeline"
+  test "pipeline maintains data integrity under concurrent load"
+  test "pipeline handles backpressure gracefully"
+  test "pipeline processes different event types correctly"
+  test "pipeline maintains performance targets"
+end
+```
 
-  # Public API
-  def start_link(opts \\ [])
-  def correlate_event(event)
-  def find_related_events(event_id)
-  def get_causality_chain(event_id)
-  def build_correlation_graph(events)
+**Target Metrics**:
+- **Throughput**: 1000+ events/sec sustained
+- **Latency**: <50ms event processing time
+- **Memory**: <200MB working set for normal load
+- **Reliability**: <0.01% event loss rate
 
-  # Correlation types
-  @correlation_types [
-    :parent_child,      # Function call → return
-    :message_flow,      # Send → receive
-    :state_transition,  # State change causality
-    :error_propagation, # Error → recovery
-    :process_spawn      # Spawn → child events
+### Phase 2.2: Event Correlation Engine (Week 2) - TDD Focus
+
+#### 2.2.1 EventCorrelator Test Suite (Day 6-8)
+```elixir
+# test/elixir_scope/storage/event_correlator_test.exs
+describe "EventCorrelator" do
+  test "links function call/return events with parent_id"
+  test "correlates message send/receive across processes"
+  test "builds causality chains for complex interactions"
+  test "assigns correlation IDs to related event groups"
+  test "handles out-of-order event correlation"
+  test "maintains correlation indexes efficiently"
+end
+```
+
+**Correlation Accuracy Tests**:
+- **Functional Tests**: 25+ tests for different correlation patterns
+- **Accuracy Tests**: >99% correlation accuracy for traced relationships
+- **Performance Tests**: <5ms correlation time per event
+- **Memory Tests**: Bounded correlation index growth
+
+#### 2.2.2 Correlation Integration (Day 9-10)
+**Enhanced Event Structures**:
+```elixir
+# Add correlation metadata to existing events
+defmodule ElixirScope.Events.FunctionExecution do
+  @derive Jason.Encoder
+  defstruct [
+    # ... existing fields ...
+    :correlation_id,     # New: Correlation group ID
+    :parent_event_id,    # New: Parent event reference
+    :causality_chain,    # New: Causality chain position
+    :correlation_type    # New: Type of correlation
   ]
 end
 ```
 
-**Key Features**:
-- Multiple correlation strategies
-- Efficient correlation index maintenance
-- Real-time correlation during ingestion
-- Causality graph construction
-- Cross-process correlation tracking
+**Test Coverage**:
+- **Structure Tests**: Event serialization with correlation metadata
+- **Integration Tests**: Correlation with existing storage/query systems
+- **Migration Tests**: Backward compatibility with Layer 1 events
 
-### 4. BackpressureManager
+### Phase 2.3: Backpressure & Performance (Week 3) - TDD Focus
 
-**Purpose**: Handle overflow and graceful degradation under high load
-
-**Responsibilities**:
-- Monitor pipeline capacity and throughput
-- Implement adaptive sampling under pressure
-- Coordinate with RingBuffer overflow strategies
-- Provide load shedding mechanisms
-- Maintain service quality under stress
-
-**API Design**:
+#### 2.3.1 BackpressureManager Test Suite (Day 11-13)
 ```elixir
-defmodule ElixirScope.Storage.BackpressureManager do
-  use GenServer
-
-  # Public API
-  def start_link(opts \\ [])
-  def report_load(component, metrics)
-  def check_pressure_status()
-  def adjust_sampling_rate(rate)
-  def enable_load_shedding(strategy)
-
-  # Pressure levels
-  @pressure_levels [:normal, :moderate, :high, :critical]
-  @load_shedding_strategies [:drop_oldest, :adaptive_sampling, :priority_based]
+# test/elixir_scope/storage/backpressure_manager_test.exs
+describe "BackpressureManager" do
+  test "detects pipeline overload conditions"
+  test "implements adaptive sampling strategies"
+  test "coordinates load shedding across components"
+  test "maintains service quality under stress"
+  test "recovers from overload conditions"
+  test "reports load metrics accurately"
 end
 ```
 
-**Key Features**:
-- Real-time load monitoring
-- Adaptive sampling strategies
-- Circuit breaker patterns
-- Priority-based event handling
-- Performance degradation alerts
+**Load Testing Strategy**:
+- **Stress Tests**: 10k+ events/sec burst testing
+- **Sustained Load**: 5k+ events/sec for 10+ minutes
+- **Degradation Tests**: Graceful performance reduction
+- **Recovery Tests**: System recovery after overload
 
-### 5. QueryCoordinator (Enhanced)
-
-**Purpose**: Advanced querying with correlation and enrichment
-
-**Responsibilities**:
-- Execute complex queries across correlated events
-- Provide correlation-aware search capabilities
-- Build materialized views for common queries
-- Cache frequently accessed correlation data
-- Support real-time query subscriptions
-
-**API Design**:
+#### 2.3.2 Performance Optimization (Day 14-15)
+**Performance Test Suite**:
 ```elixir
-defmodule ElixirScope.Storage.QueryCoordinator do
-  use GenServer
+# test/elixir_scope/storage/performance_test.exs
+describe "Layer 2 Performance" do
+  test "achieves 10k+ events/sec peak throughput"
+  test "maintains <10ms average processing latency"
+  test "bounds memory usage under sustained load"
+  test "scales efficiently with worker count"
+  test "handles correlation efficiently at scale"
+end
+```
 
-  # Public API
-  def start_link(opts \\ [])
-  def query_events(query_spec)
-  def query_correlation_chain(event_id)
-  def subscribe_to_events(pattern, subscriber)
-  def get_materialized_view(view_name)
+**Optimization Areas**:
+- **Batch Processing**: Optimize batch sizes for throughput
+- **Correlation Indexing**: Efficient correlation lookup structures
+- **Memory Management**: Bounded correlation cache with LRU eviction
+- **Worker Coordination**: Minimize contention between workers
 
-  # Query types
-  @query_types [
-    :temporal,          # Time-based queries
-    :causal,           # Causality-based queries  
-    :process_based,    # Process-centric queries
-    :correlation,      # Correlation-based queries
-    :pattern_match     # Pattern matching queries
-  ]
+### Phase 2.4: Advanced Features & Polish (Week 4) - TDD Focus
+
+#### 2.4.1 Enhanced QueryCoordinator (Day 16-18)
+```elixir
+# test/elixir_scope/storage/query_coordinator_enhanced_test.exs
+describe "Enhanced QueryCoordinator" do
+  test "queries events by correlation relationships"
+  test "reconstructs causality chains efficiently"
+  test "supports real-time event subscriptions"
+  test "provides correlation-aware search"
+  test "handles complex multi-dimensional queries"
+end
+```
+
+**Query Performance Tests**:
+- **Correlation Queries**: <10ms for correlation chain reconstruction
+- **Real-time Subscriptions**: <100ms notification latency
+- **Complex Queries**: Multi-dimensional search performance
+- **Memory Efficiency**: Query result caching and optimization
+
+#### 2.4.2 Integration & Validation (Day 19-20)
+**Full Layer 2 Validation**:
+```elixir
+# test/elixir_scope/layer2_acceptance_test.exs
+describe "Layer 2 Acceptance" do
+  test "complete pipeline handles real-world event patterns"
+  test "correlation accuracy meets production requirements"
+  test "performance targets achieved under realistic load"
+  test "fault tolerance handles production failure scenarios"
+  test "integration with Layer 1 maintains stability"
 end
 ```
 
 ---
 
-## Implementation Plan
+## Performance Targets & Success Metrics
 
-### Phase 2.1: Basic Async Pipeline (Week 1)
-
-**Tasks**:
-1. Implement PipelineManager supervisor
-2. Create AsyncWriterPool with basic batch processing
-3. Integrate with existing RingBuffer and DataAccess
-4. Add basic health monitoring and metrics
-5. Write comprehensive tests for async processing
-
-**Deliverables**:
-- Functional async pipeline from RingBuffer to DataAccess
-- Basic batch processing with configurable sizes
-- Health monitoring and basic metrics
-- 95%+ test coverage for core async functionality
-
-**Success Criteria**:
-- Process 1000+ events/sec sustainably
-- Handle worker failures gracefully
-- Maintain data integrity during async processing
-- Pass all integration tests
-
-### Phase 2.2: Event Correlation (Week 2)
-
-**Tasks**:
-1. Implement EventCorrelator with basic causality tracking
-2. Add correlation ID propagation to event structures
-3. Build correlation indexes for fast lookups
-4. Implement parent/child relationship tracking
-5. Add correlation-aware querying to QueryCoordinator
-
-**Deliverables**:
-- Working event correlation system
-- Causality chain reconstruction
-- Correlation-based queries
-- Enhanced event structures with correlation metadata
-
-**Success Criteria**:
-- Correlate function call/return pairs accurately
-- Track message send/receive relationships
-- Build causality graphs for complex interactions
-- Query by correlation with <10ms response time
-
-### Phase 2.3: Backpressure & Scaling (Week 3)
-
-**Tasks**:
-1. Implement BackpressureManager with load monitoring
-2. Add adaptive sampling under high load
-3. Implement circuit breaker patterns
-4. Add dynamic worker scaling
-5. Performance testing and optimization
-
-**Deliverables**:
-- Complete backpressure management system
-- Adaptive sampling strategies
-- Dynamic scaling capabilities
-- Performance benchmarks and optimizations
-
-**Success Criteria**:
-- Handle 10k+ events/sec peak load
-- Graceful degradation under pressure
-- No data loss during overload scenarios
-- Memory usage bounded under sustained load
-
-### Phase 2.4: Advanced Features (Week 4)
-
-**Tasks**:
-1. Add real-time query subscriptions
-2. Implement materialized views for common queries
-3. Add priority-based event processing
-4. Performance optimization and tuning
-5. Comprehensive integration testing
-
-**Deliverables**:
-- Real-time event streaming capabilities
-- Optimized query performance
-- Priority-based processing
-- Full Layer 2 integration
-
-**Success Criteria**:
-- Real-time event subscriptions with <100ms latency
-- Common queries executing in <5ms
-- Priority events processed within SLA
-- 98%+ test coverage across all Layer 2 components
-
----
-
-## Performance Targets
-
-### Throughput
-- **Target**: 10,000 events/sec sustained
+### Throughput Targets
+- **Sustained**: 10,000 events/sec for 10+ minutes
 - **Peak**: 20,000 events/sec burst (30 seconds)
-- **Latency**: <10ms event processing time
-- **Memory**: <500MB working set under normal load
+- **Processing Latency**: <10ms average event processing time
+- **Query Response**: <10ms for correlation queries
+- **Memory Usage**: <500MB working set under normal load
 
-### Scalability
-- **Workers**: Dynamic scaling from 2-16 workers
-- **Batching**: Adaptive batch sizes (100-10,000 events)
-- **Correlation**: Support 1M+ correlated events in memory
-- **Queries**: <100ms for complex correlation queries
-
-### Reliability
-- **Availability**: 99.9% uptime under normal conditions
+### Reliability Targets
 - **Data Integrity**: Zero data loss during normal operations
-- **Error Handling**: <0.1% event processing failure rate
-- **Recovery**: <30 seconds to recover from worker failures
+- **Correlation Accuracy**: >99% for traced relationships
+- **Fault Recovery**: <30 seconds recovery from worker failures
+- **Availability**: 99.9% uptime under normal conditions
+
+### Test Coverage Targets
+- **Unit Test Coverage**: >95% for all Layer 2 components
+- **Integration Test Coverage**: >90% for component interactions
+- **Performance Test Coverage**: All critical performance paths tested
+- **Load Test Coverage**: All failure modes and recovery scenarios
 
 ---
 
-## Testing Strategy
+## Progress Tracking
 
-### Unit Tests
-- Each component tested in isolation
-- Mock dependencies for fast test execution
-- Property-based testing for correlation logic
-- Performance benchmarks for critical paths
+### Development Milestones
+- [ ] **Week 1 Complete**: Basic async pipeline functional with tests
+- [ ] **Week 2 Complete**: Event correlation system implemented and tested
+- [ ] **Week 3 Complete**: Backpressure management and performance optimization
+- [ ] **Week 4 Complete**: Enhanced features and full validation
 
-### Integration Tests
-- End-to-end pipeline testing
-- Multi-worker coordination tests
-- Backpressure scenario testing
-- Failure recovery testing
+### Test Progress Tracking
+- [ ] **PipelineManager**: 0/15 unit tests, 0/8 integration tests
+- [ ] **AsyncWriterPool**: 0/20 unit tests, 0/10 integration tests  
+- [ ] **EventCorrelator**: 0/25 functional tests, 0/12 performance tests
+- [ ] **BackpressureManager**: 0/18 load tests, 0/8 stress tests
+- [ ] **QueryCoordinator Enhanced**: 0/15 query tests, 0/6 subscription tests
+- [ ] **Layer 2 Integration**: 0/20 end-to-end tests
 
-### Load Tests
-- Sustained high-throughput testing
-- Memory usage under load
-- Backpressure behavior validation
-- Performance regression detection
+### Performance Progress Tracking
+- [ ] **1k events/sec sustained**: Not tested
+- [ ] **10k events/sec sustained**: Not tested
+- [ ] **<10ms processing latency**: Not tested
+- [ ] **<10ms correlation queries**: Not tested
+- [ ] **Memory usage bounded**: Not tested
 
-### Acceptance Tests
-- Real-world scenario testing
-- Correlation accuracy validation
-- Query performance verification
-- Production readiness assessment
+### Current Status: Ready to Begin Layer 2 Development
 
----
-
-## Risk Assessment
-
-### Technical Risks
-1. **Memory Usage**: Event correlation may consume significant memory
-   - *Mitigation*: Implement LRU caches and periodic cleanup
-2. **Processing Latency**: Async processing may introduce latency
-   - *Mitigation*: Optimize batch sizes and worker count
-3. **Correlation Complexity**: Complex causality tracking may be error-prone
-   - *Mitigation*: Start with simple correlations, add complexity gradually
-
-### Performance Risks
-1. **Backpressure Cascading**: High load may cascade through pipeline
-   - *Mitigation*: Implement circuit breakers and load shedding
-2. **Query Performance**: Complex correlation queries may be slow
-   - *Mitigation*: Build materialized views and optimize indexes
-3. **Worker Coordination**: Too many workers may cause contention
-   - *Mitigation*: Implement adaptive worker scaling
+**Foundation Health**: ✅ 98.2% test success (216/220 tests)
+**Dependencies**: ✅ All Layer 1 components functional
+**Architecture**: ✅ Design validated and ready for implementation
+**Test Framework**: ✅ Comprehensive test strategy defined
 
 ---
 
-## Dependencies
+## Next Steps
 
-### Internal Dependencies
-- ElixirScope.Capture.RingBuffer (Layer 1) ✅
-- ElixirScope.Storage.DataAccess (Layer 1) ✅
-- ElixirScope.Events (Layer 0) ✅
-- ElixirScope.Utils (Layer 0) ✅
+### Immediate Actions (Start Layer 2)
+1. **Address Layer 1 Issues**: Fix remaining 4 test failures for clean foundation
+2. **Setup Layer 2 Test Structure**: Create test files and basic structure
+3. **Begin PipelineManager TDD**: Write first test suite and implement
+4. **Performance Baseline**: Establish Layer 1 performance baseline for comparison
 
-### External Dependencies
-- No new external dependencies required
-- Leverage existing OTP supervision and GenServer patterns
-- Use built-in ETS for correlation indexes
+### Development Commands
+```bash
+# Layer 2 development setup
+mix test --only layer2                    # Run Layer 2 tests (when created)
+mix test test/elixir_scope/storage/       # Run all storage layer tests
+./test_runner.sh --layer2                 # Layer 2 specific test runner
 
----
-
-## Success Metrics
-
-### Development Metrics
-- [ ] 95%+ test coverage across all Layer 2 components
-- [ ] 100% of planned features implemented
-- [ ] Performance targets met in testing
-- [ ] Zero critical bugs in code review
-
-### Integration Metrics
-- [ ] Successful integration with Layer 1 components
-- [ ] No regression in existing functionality
-- [ ] Pipeline processes events end-to-end successfully
-- [ ] Correlation accuracy >99% for tracked relationships
-
-### Performance Metrics
-- [ ] 10k+ events/sec sustained throughput achieved
-- [ ] <10ms average event processing latency
-- [ ] Memory usage bounded under sustained load
-- [ ] Query performance targets met (<10ms correlations)
+# Performance monitoring
+mix test --only performance               # Run performance test suite
+mix test --only load                      # Run load testing
+```
 
 ---
 
-*Document Version: 1.0*
-*Created: 2024-01-26*
-*Target Start: Next Development Phase* 
+*Document Version: 2.0 - Refined Test-Driven Plan*
+*Updated: 2024-01-26*
+*Status: Ready for Layer 2 Development* 
