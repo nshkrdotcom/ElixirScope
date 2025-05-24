@@ -15,4 +15,17 @@ defmodule ElixirScope do
     opts = [strategy: :one_for_one, name: ElixirScope.Supervisor]
     Supervisor.start_link(children, opts)
   end
+
+  @doc """
+  Hello world.
+
+  ## Examples
+
+      iex> ElixirScope.hello()
+      :world
+
+  """
+  def hello do
+    :world
+  end
 end
