@@ -1,0 +1,46 @@
+import Config
+
+# Development configuration
+config :elixir_scope,
+  # More verbose logging in development
+  log_level: :debug,
+  
+  # Enhanced AI configuration for development
+  ai: [
+    planning: [
+      default_strategy: :full_trace,  # Full tracing in dev
+      performance_target: 0.1,       # Accept 10% overhead in dev
+      sampling_rate: 1.0              # Total recall in dev
+    ]
+  ],
+
+  # Larger capture buffers for development
+  capture: [
+    ring_buffer: [
+      size: 2_097_152,              # 2MB buffer in dev
+      max_events: 200_000
+    ],
+    processing: [
+      batch_size: 500,              # Smaller batches for responsiveness
+      flush_interval: 50            # More frequent flushing
+    ]
+  ],
+
+  # Enhanced storage for development
+  storage: [
+    hot: [
+      max_events: 2_000_000,        # 2M events in dev
+      max_age_seconds: 7200,        # 2 hours in dev
+      prune_interval: 30_000        # Prune every 30 seconds
+    ]
+  ],
+
+  # Enable development interface features
+  interface: [
+    iex_helpers: true,
+    query_timeout: 10_000,          # Longer timeout for dev queries
+    web: [
+      enable: false,                # Keep disabled for now
+      port: 4001                    # Different port to avoid conflicts
+    ]
+  ] 
