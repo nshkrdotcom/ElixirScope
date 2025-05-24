@@ -30,7 +30,7 @@ defmodule ElixirScope.Capture.IngestorTest do
       assert event.caller_pid == self()
       assert event.correlation_id == "correlation-123"
       assert event.event_type == :call
-      assert is_binary(event.id)
+      assert is_integer(event.id)
       assert is_integer(event.timestamp)
     end
 
@@ -49,7 +49,7 @@ defmodule ElixirScope.Capture.IngestorTest do
       {:ok, event, _} = RingBuffer.read(buffer, 0)
       assert event.arity == 1000
       # Args should be truncated for memory efficiency
-      assert is_list(event.args)
+      assert match?({:truncated, _, _}, event.args)
     end
   end
 
@@ -86,7 +86,7 @@ defmodule ElixirScope.Capture.IngestorTest do
       
       {:ok, event, _} = RingBuffer.read(buffer, 0)
       # Return value should be truncated
-      assert is_map(event.return_value)
+      assert match?({:truncated, _, _}, event.return_value)
     end
   end
 
@@ -130,7 +130,7 @@ defmodule ElixirScope.Capture.IngestorTest do
       
       {:ok, event, _} = RingBuffer.read(buffer, 0)
       # Message should be truncated
-      assert is_map(event.message)
+      assert match?({:truncated, _, _}, event.message)
     end
   end
 
@@ -144,7 +144,7 @@ defmodule ElixirScope.Capture.IngestorTest do
       {:ok, event, _} = RingBuffer.read(buffer, 0)
       
       assert %Events.StateChange{} = event
-      assert event.pid == self()
+      assert event.server_pid == self()
       assert event.old_state == old_state
       assert event.new_state == new_state
     end
@@ -186,9 +186,8 @@ defmodule ElixirScope.Capture.IngestorTest do
       {:ok, event, _} = RingBuffer.read(buffer, 0)
       
       assert %Events.ErrorEvent{} = event
-      assert event.error == error
-      assert event.reason == reason
-      assert event.pid == self()
+      assert event.error_type == error
+      assert event.error_message == reason
       assert is_list(event.stacktrace)
     end
   end

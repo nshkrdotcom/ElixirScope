@@ -121,8 +121,7 @@ defmodule ElixirScope.Capture.Ingestor do
   """
   @spec ingest_state_change(RingBuffer.t(), pid(), term(), term()) :: ingest_result()
   def ingest_state_change(buffer, server_pid, old_state, new_state) do
-    # Use the base event wrapper approach for StateChange
-    data = %Events.StateChange{
+    event = %Events.StateChange{
       server_pid: server_pid,
       callback: :unknown,  # This would be passed as parameter in real usage
       old_state: Utils.truncate_data(old_state),
@@ -132,7 +131,6 @@ defmodule ElixirScope.Capture.Ingestor do
       trigger_call_id: nil
     }
     
-    event = Events.new_event(:state_change, data)
     RingBuffer.write(buffer, event)
   end
 
@@ -158,7 +156,7 @@ defmodule ElixirScope.Capture.Ingestor do
   """
   @spec ingest_error(RingBuffer.t(), term(), term(), list()) :: ingest_result()
   def ingest_error(buffer, error_type, error_message, stacktrace) do
-    data = %Events.ErrorEvent{
+    event = %Events.ErrorEvent{
       error_type: error_type,
       error_class: :unknown,  # Could be extracted from error in real usage
       error_message: Utils.truncate_data(error_message),
@@ -167,7 +165,6 @@ defmodule ElixirScope.Capture.Ingestor do
       recovery_action: nil
     }
     
-    event = Events.new_event(:error, data)
     RingBuffer.write(buffer, event)
   end
 
@@ -187,7 +184,12 @@ defmodule ElixirScope.Capture.Ingestor do
       {:ok, success_count}
     else
       # Return partial success info
-      errors = Enum.filter(results, &(elem(&1, 0) == :error))
+      errors = Enum.filter(results, fn result ->
+        case result do
+          {:error, _} -> true
+          _ -> false
+        end
+      end)
       {:error, {:partial_success, success_count, errors}}
     end
   end

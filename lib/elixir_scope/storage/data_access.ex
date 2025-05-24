@@ -143,46 +143,51 @@ defmodule ElixirScope.Storage.DataAccess do
   """
   @spec store_events(t(), [Events.event()]) :: {:ok, non_neg_integer()} | {:error, term()}
   def store_events(%__MODULE__{} = storage, events) when is_list(events) do
-    try do
-      # Prepare all inserts
-      primary_inserts = Enum.map(events, &{&1.id, &1})
-      temporal_inserts = Enum.map(events, &{&1.timestamp, &1.id})
-      
-      process_inserts = events
-        |> Enum.map(&{extract_pid(&1), &1.id})
-        |> Enum.reject(&(elem(&1, 0) == nil))
-      
-      function_inserts = events
-        |> Enum.map(&{extract_function_info(&1), &1.id})
-        |> Enum.reject(&(elem(&1, 0) == nil))
-      
-      correlation_inserts = events
-        |> Enum.map(&{extract_correlation_id(&1), &1.id})
-        |> Enum.reject(&(elem(&1, 0) == nil))
-      
-      # Batch insert into all tables
-      :ets.insert(storage.primary_table, primary_inserts)
-      :ets.insert(storage.temporal_index, temporal_inserts)
-      
-      if length(process_inserts) > 0 do
-        :ets.insert(storage.process_index, process_inserts)
+    # Handle empty list case
+    if events == [] do
+      {:ok, 0}
+    else
+      try do
+        # Prepare all inserts
+        primary_inserts = Enum.map(events, &{&1.id, &1})
+        temporal_inserts = Enum.map(events, &{&1.timestamp, &1.id})
+        
+        process_inserts = events
+          |> Enum.map(&{extract_pid(&1), &1.id})
+          |> Enum.reject(&(elem(&1, 0) == nil))
+        
+        function_inserts = events
+          |> Enum.map(&{extract_function_info(&1), &1.id})
+          |> Enum.reject(&(elem(&1, 0) == nil))
+        
+        correlation_inserts = events
+          |> Enum.map(&{extract_correlation_id(&1), &1.id})
+          |> Enum.reject(&(elem(&1, 0) == nil))
+        
+        # Batch insert into all tables
+        :ets.insert(storage.primary_table, primary_inserts)
+        :ets.insert(storage.temporal_index, temporal_inserts)
+        
+        if length(process_inserts) > 0 do
+          :ets.insert(storage.process_index, process_inserts)
+        end
+        
+        if length(function_inserts) > 0 do
+          :ets.insert(storage.function_index, function_inserts)
+        end
+        
+        if length(correlation_inserts) > 0 do
+          :ets.insert(storage.correlation_index, correlation_inserts)
+        end
+        
+        # Update stats with newest timestamp and event count
+        newest_timestamp = events |> Enum.map(& &1.timestamp) |> Enum.max()
+        update_stats_batch(storage, newest_timestamp, length(events))
+        
+        {:ok, length(events)}
+      rescue
+        error -> {:error, {:batch_storage_failed, error}}
       end
-      
-      if length(function_inserts) > 0 do
-        :ets.insert(storage.function_index, function_inserts)
-      end
-      
-      if length(correlation_inserts) > 0 do
-        :ets.insert(storage.correlation_index, correlation_inserts)
-      end
-      
-      # Update stats with newest timestamp
-      newest_timestamp = events |> Enum.map(& &1.timestamp) |> Enum.max()
-      update_stats(storage, newest_timestamp)
-      
-      {:ok, length(events)}
-    rescue
-      error -> {:error, {:batch_storage_failed, error}}
     end
   end
 
@@ -408,6 +413,21 @@ defmodule ElixirScope.Storage.DataAccess do
 
   defp update_stats(storage, timestamp) do
     :ets.update_counter(storage.stats_table, :total_events, 1)
+    
+    # Update oldest timestamp if this is the first event
+    case :ets.lookup(storage.stats_table, :oldest_timestamp) do
+      [{:oldest_timestamp, nil}] ->
+        :ets.insert(storage.stats_table, {:oldest_timestamp, timestamp})
+      _ ->
+        :ok
+    end
+    
+    # Always update newest timestamp
+    :ets.insert(storage.stats_table, {:newest_timestamp, timestamp})
+  end
+
+  defp update_stats_batch(storage, timestamp, count) do
+    :ets.update_counter(storage.stats_table, :total_events, count)
     
     # Update oldest timestamp if this is the first event
     case :ets.lookup(storage.stats_table, :oldest_timestamp) do
