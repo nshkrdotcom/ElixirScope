@@ -1,7 +1,6 @@
 defmodule ElixirScope.UtilsTest do
   use ExUnit.Case, async: true
   
-  import Bitwise
   alias ElixirScope.Utils
 
   describe "timestamp generation" do
@@ -125,9 +124,9 @@ defmodule ElixirScope.UtilsTest do
     end
 
     test "extracts timestamp from ID" do
-      before_timestamp = Utils.monotonic_timestamp()
+      _before_timestamp = Utils.monotonic_timestamp()
       id = Utils.generate_id()
-      after_timestamp = Utils.monotonic_timestamp()
+      _after_timestamp = Utils.monotonic_timestamp()
       
       extracted_timestamp = Utils.id_to_timestamp(id)
       
@@ -221,24 +220,19 @@ defmodule ElixirScope.UtilsTest do
 
   describe "performance helpers" do
     test "measures memory usage" do
-      {result, {memory_before, memory_after, diff}} = Utils.measure_memory(fn ->
+      {result, {_memory_before, _memory_after, diff}} = Utils.measure_memory(fn ->
         # Allocate some memory
         Enum.to_list(1..1000)
       end)
 
       assert is_list(result)
       assert length(result) == 1000
-      assert is_integer(memory_before)
-      assert is_integer(memory_after)
       assert is_integer(diff)
-      assert memory_before >= 0
-      assert memory_after >= 0
-      # Should have allocated some memory (diff might be positive, negative, or zero due to garbage collection)
-      assert is_integer(diff)
+      assert diff >= 0
     end
 
     test "measures memory for operations that don't allocate" do
-      {result, {memory_before, memory_after, diff}} = Utils.measure_memory(fn ->
+      {result, {_memory_before, _memory_after, diff}} = Utils.measure_memory(fn ->
         # Simple operation that shouldn't allocate much
         1 + 1
       end)

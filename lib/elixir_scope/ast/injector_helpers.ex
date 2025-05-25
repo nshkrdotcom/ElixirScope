@@ -75,7 +75,7 @@ defmodule ElixirScope.AST.InjectorHelpers do
   @doc """
   Wraps GenServer callback body with state monitoring.
   """
-  def wrap_genserver_callback_body(body, signature, callback_plan) do
+  def wrap_genserver_callback_body(body, signature, _callback_plan) do
     callback_name = extract_callback_name(signature)
     
     quote do
@@ -152,7 +152,7 @@ defmodule ElixirScope.AST.InjectorHelpers do
   @doc """
   Wraps Phoenix action body with monitoring.
   """
-  def wrap_phoenix_action_body(body, signature, action_plan) do
+  def wrap_phoenix_action_body(body, signature, _action_plan) do
     action_name = extract_action_name(signature)
     
     quote do
@@ -240,7 +240,7 @@ defmodule ElixirScope.AST.InjectorHelpers do
   @doc """
   Wraps LiveView callback body with monitoring.
   """
-  def wrap_liveview_callback_body(body, signature, callback_plan) do
+  def wrap_liveview_callback_body(body, signature, _callback_plan) do
     callback_name = extract_callback_name(signature)
     
     quote do
@@ -270,25 +270,25 @@ defmodule ElixirScope.AST.InjectorHelpers do
 
   # Private helper functions
 
+  defp extract_function_info({:when, _, [name_and_args, _]}) do
+    extract_function_info(name_and_args)
+  end
   defp extract_function_info({function_name, _, args}) when is_list(args) do
     {function_name, length(args)}
   end
   defp extract_function_info({function_name, _, _}) do
     {function_name, 0}
   end
-  defp extract_function_info({:when, _, [name_and_args, _]}) do
-    extract_function_info(name_and_args)
-  end
 
-  defp extract_callback_name({callback_name, _, _}), do: callback_name
   defp extract_callback_name({:when, _, [name_and_args, _]}) do
     extract_callback_name(name_and_args)
   end
+  defp extract_callback_name({callback_name, _, _}), do: callback_name
 
-  defp extract_action_name({action_name, _, _}), do: action_name
   defp extract_action_name({:when, _, [name_and_args, _]}) do
     extract_action_name(name_and_args)
   end
+  defp extract_action_name({action_name, _, _}), do: action_name
 
   defp generate_correlation_id do
     quote do

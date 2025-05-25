@@ -190,7 +190,7 @@ defmodule ElixirScope.Distributed.EventSynchronizer do
     end)
   end
 
-  defp restore_event_from_sync(sync_event, source_node) do
+  defp restore_event_from_sync(sync_event, _source_node) do
     restored_data = case sync_event.data do
       {:compressed, compressed_data} ->
         compressed_data

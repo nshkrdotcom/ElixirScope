@@ -3,7 +3,6 @@ defmodule ElixirScope.Capture.PipelineManagerTest do
   
   alias ElixirScope.Capture.PipelineManager
   alias ElixirScope.Capture.AsyncWriterPool
-  alias ElixirScope.Config
   
   describe "supervisor lifecycle" do
     test "starts successfully with default configuration" do

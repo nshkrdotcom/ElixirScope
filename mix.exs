@@ -31,6 +31,12 @@ defmodule ElixirScope.MixProject do
 
   defp deps do
     [
+      # Core Dependencies
+      {:telemetry, "~> 1.0"},
+      {:plug, "~> 1.14", optional: true},
+      {:phoenix, "~> 1.7", optional: true},
+      {:phoenix_live_view, "~> 0.18", optional: true},
+      
       # Testing & Quality
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: :test},

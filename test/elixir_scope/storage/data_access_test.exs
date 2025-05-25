@@ -459,7 +459,7 @@ defmodule ElixirScope.Storage.DataAccessTest do
     end
 
     @tag :performance
-    test "batch storage is more efficient than individual storage", %{storage: storage} do
+    test "batch storage is more efficient than individual storage", %{storage: _storage} do
       events = for i <- 1..1000 do
         %Events.FunctionExecution{
           id: "batch-perf-#{i}",

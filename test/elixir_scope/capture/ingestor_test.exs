@@ -224,7 +224,7 @@ defmodule ElixirScope.Capture.IngestorTest do
       assert length(read_events) == 3
     end
 
-    test "handles partial failures gracefully", %{buffer: buffer} do
+    test "handles partial failures gracefully", %{buffer: _buffer} do
       # Create a small buffer that will overflow
       {:ok, small_buffer} = RingBuffer.new(size: 2, overflow_strategy: :drop_newest)
       
@@ -453,7 +453,7 @@ defmodule ElixirScope.Capture.IngestorTest do
   end
 
   describe "error handling" do
-    test "handles buffer write failures gracefully", %{buffer: buffer} do
+    test "handles buffer write failures gracefully", %{buffer: _buffer} do
       # Fill buffer to capacity with drop_newest strategy
       {:ok, full_buffer} = RingBuffer.new(size: 4, overflow_strategy: :drop_newest)
       

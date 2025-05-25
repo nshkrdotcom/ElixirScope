@@ -152,7 +152,7 @@ defmodule ElixirScope.Capture.RingBufferTest do
       {:ok, buffer} = RingBuffer.new(size: 4, overflow_strategy: :drop_oldest)
       
       # Fill buffer
-      events = for i <- 1..6 do
+      _events = for i <- 1..6 do
         event = %Events.FunctionExecution{
           id: "test-id-#{i}",
           timestamp: System.monotonic_time(:nanosecond),
@@ -438,7 +438,7 @@ defmodule ElixirScope.Capture.RingBufferTest do
       {:ok, buffer} = RingBuffer.new(size: 65536)
       
       # Fill buffer with test events
-      events = for i <- 1..10000 do
+      _events = for i <- 1..10000 do
         event = %Events.FunctionExecution{
           id: "perf-test-#{i}",
           timestamp: System.monotonic_time(:nanosecond),

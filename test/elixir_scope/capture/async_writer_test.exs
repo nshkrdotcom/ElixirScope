@@ -225,7 +225,7 @@ defmodule ElixirScope.Capture.AsyncWriterTest do
       
       Process.sleep(50)
       
-      state = AsyncWriter.get_state(pid)
+      _state = AsyncWriter.get_state(pid)
       # Should handle empty batches without crashing
       assert Process.alive?(pid)
       

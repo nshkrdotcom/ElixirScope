@@ -46,7 +46,7 @@ defmodule ElixirScope.Capture.PipelineManager do
   @doc """
   Gets the current state of the PipelineManager.
   """
-  def get_state(pid \\ __MODULE__) do
+  def get_state(_pid \\ __MODULE__) do
     case :ets.lookup(@table_name, :state) do
       [{:state, state}] -> state
       [] -> create_initial_state()

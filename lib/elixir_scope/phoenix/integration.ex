@@ -26,12 +26,10 @@ defmodule ElixirScope.Phoenix.Integration do
   Disables Phoenix instrumentation.
   """
   def disable do
-    :telemetry.detach_many([
-      :elixir_scope_phoenix_http,
-      :elixir_scope_phoenix_liveview,
-      :elixir_scope_phoenix_channel,
-      :elixir_scope_phoenix_ecto
-    ])
+    :telemetry.detach(:elixir_scope_phoenix_http)
+    :telemetry.detach(:elixir_scope_phoenix_liveview)
+    :telemetry.detach(:elixir_scope_phoenix_channel)
+    :telemetry.detach(:elixir_scope_phoenix_ecto)
   end
 
   # HTTP Request/Response Handlers
@@ -276,7 +274,12 @@ defmodule ElixirScope.Phoenix.Integration do
   end
 
   defp put_correlation_id(conn, correlation_id) do
-    Plug.Conn.put_private(conn, :elixir_scope_correlation_id, correlation_id)
+    if Code.ensure_loaded?(Plug.Conn) do
+      Plug.Conn.put_private(conn, :elixir_scope_correlation_id, correlation_id)
+    else
+      # Fallback if Plug.Conn is not available
+      %{conn | private: Map.put(conn.private || %{}, :elixir_scope_correlation_id, correlation_id)}
+    end
   end
 
   defp get_correlation_id(conn) do
@@ -284,7 +287,14 @@ defmodule ElixirScope.Phoenix.Integration do
   end
 
   defp put_socket_correlation_id(socket, correlation_id) do
-    Phoenix.LiveView.assign(socket, :elixir_scope_correlation_id, correlation_id)
+    if Code.ensure_loaded?(Phoenix.LiveView) do
+      # Use the assign function from the socket itself
+      socket
+      |> Map.update!(:assigns, &Map.put(&1, :elixir_scope_correlation_id, correlation_id))
+    else
+      # Fallback if Phoenix.LiveView is not available
+      %{socket | assigns: Map.put(socket.assigns, :elixir_scope_correlation_id, correlation_id)}
+    end
   end
 
   defp get_socket_correlation_id(socket) do
@@ -295,14 +305,15 @@ defmodule ElixirScope.Phoenix.Integration do
     Process.get(:elixir_scope_correlation_id)
   end
 
-  defp put_process_correlation_id(correlation_id) do
-    Process.put(:elixir_scope_correlation_id, correlation_id)
-  end
-
   defp response_size(conn) do
-    case Plug.Conn.get_resp_header(conn, "content-length") do
-      [size] -> String.to_integer(size)
-      _ -> byte_size(conn.resp_body || "")
+    if Code.ensure_loaded?(Plug.Conn) do
+      case Plug.Conn.get_resp_header(conn, "content-length") do
+        [size] -> String.to_integer(size)
+        _ -> byte_size(conn.resp_body || "")
+      end
+    else
+      # Fallback if Plug.Conn is not available
+      byte_size(conn.resp_body || "")
     end
   end
 

@@ -162,7 +162,7 @@ defmodule ElixirScope.ConfigTest do
     test "merges application environment configuration" do
       # This test would need to set up application environment
       # For now, we'll test the internal merge functions
-      base_config = %{
+      _base_config = %{
         ai: %{
           provider: :mock,
           planning: %{
@@ -172,7 +172,7 @@ defmodule ElixirScope.ConfigTest do
         }
       }
       
-      app_config = [
+      _app_config = [
         ai: [
           planning: [
             sampling_rate: 0.5

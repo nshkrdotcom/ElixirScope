@@ -243,13 +243,6 @@ defmodule ElixirScope.AI.PatternRecognizer do
     end) |> elem(1)
   end
 
-  defp ast_contains_pattern?(ast, pattern) do
-    Macro.prewalk(ast, false, fn
-      ^pattern, _acc -> {true, true}
-      node, acc -> {node, acc}
-    end) |> elem(1)
-  end
-
   defp ast_contains_import?(ast, module) do
     Macro.prewalk(ast, false, fn
       {:import, _, [^module]}, _acc -> {true, true}

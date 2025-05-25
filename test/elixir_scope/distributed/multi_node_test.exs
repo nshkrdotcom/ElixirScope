@@ -1,8 +1,7 @@
 defmodule ElixirScope.Distributed.MultiNodeTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: false
 
   alias ElixirScope.Distributed.NodeCoordinator
-  alias ElixirScope.Distributed.EventSynchronizer
   alias ElixirScope.Storage.DataAccess
 
   @test_nodes [:node1@localhost, :node2@localhost, :node3@localhost]
@@ -69,7 +68,7 @@ defmodule ElixirScope.Distributed.MultiNodeTest do
       else
         %{nodes: [node1, node2]} = context
         # Spawn process on node2 from node1
-        spawn_result = :rpc.call(node1, Node, :spawn, [node2, fn ->
+        _spawn_result = :rpc.call(node1, Node, :spawn, [node2, fn ->
           Process.sleep(100)
           :ok
         end])
@@ -99,7 +98,7 @@ defmodule ElixirScope.Distributed.MultiNodeTest do
       else
         %{nodes: [node1, node2, node3]} = context
         # Establish communication between nodes
-        correlation_id = start_distributed_operation(node1, node2)
+        _correlation_id = start_distributed_operation(node1, node2)
 
         # Disconnect node2
         :rpc.call(node2, Node, :disconnect, [node1])

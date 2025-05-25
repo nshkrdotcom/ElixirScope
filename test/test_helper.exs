@@ -6,6 +6,9 @@ Application.put_env(:elixir_scope, :test_mode, true)
 # Ensure clean state for each test
 ExUnit.configure(exclude: [:skip])
 
+# Compile test support modules
+Code.compile_file("test/support/test_phoenix_app.ex")
+
 # Helper functions for tests
 defmodule ElixirScope.TestHelpers do
   @moduledoc """

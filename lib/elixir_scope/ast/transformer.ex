@@ -251,18 +251,4 @@ defmodule ElixirScope.AST.Transformer do
     Map.get(plan, :liveview_callbacks, %{})
     |> Map.get(callback_name)
   end
-
-  defp extract_module_name({:defmodule, _, [module_name, _]}), do: module_name
-  defp extract_module_name(ast) do
-    # Fallback for cases where module name isn't directly in defmodule
-    # e.g., if the AST is a single function within a module
-    case Macro.prewalk(ast, nil, fn
-      {:__MODULE__, _, _}, _acc -> {:__MODULE__, [], ElixirScope.AST.Transformer} # Placeholder for current module
-      {:defmodule, _, [module_name, _]}, _acc -> {module_name, module_name}
-      node, acc -> {node, acc}
-    end) do
-      {_, module_name} when is_atom(module_name) -> module_name
-      _ -> nil
-    end
-  end
 end

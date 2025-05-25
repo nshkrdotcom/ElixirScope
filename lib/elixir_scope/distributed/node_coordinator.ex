@@ -11,6 +11,7 @@ defmodule ElixirScope.Distributed.NodeCoordinator do
   """
 
   use GenServer
+  require Logger
 
   alias ElixirScope.Distributed.EventSynchronizer
   alias ElixirScope.Distributed.GlobalClock
