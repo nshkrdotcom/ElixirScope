@@ -1,9 +1,12 @@
 import Config
 
+# Configure Logger to only show errors during tests (reduce noise)
+config :logger, level: :error
+
 # Test configuration
 config :elixir_scope,
   # Minimal logging in tests
-  log_level: :warning,
+  log_level: :error,
   
   # Test-friendly AI configuration
   ai: [
@@ -14,6 +17,9 @@ config :elixir_scope,
       sampling_rate: 1.0            # Full sampling for predictable tests
     ]
   ],
+  
+  # Force mock provider in tests (overrides auto-detection)
+  llm_provider: "mock",
 
   # Smaller buffers for faster tests
   capture: [
@@ -45,4 +51,21 @@ config :elixir_scope,
 # Exclude live API tests by default
 # To run live tests: mix test --only live_api
 # To include all tests: mix test --include live_api
-ExUnit.configure(exclude: [:live_api]) 
+ExUnit.configure(
+  exclude: [:live_api],
+  formatters: [ExUnit.CLIFormatter],
+  colors: [
+    enabled: true,
+    success: :green,
+    invalid: :yellow,
+    failure: :red,
+    error: :red,
+    extra_info: :cyan,
+    diff_delete: :red,
+    diff_insert: :green
+  ],
+  trace: true,  # Show each test as it runs
+  max_cases: 1, # Force trace mode (shows individual tests)
+  timeout: 60_000,
+  max_failures: :infinity
+) 

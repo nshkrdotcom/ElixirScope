@@ -5,15 +5,22 @@ defmodule ElixirScope.MixProject do
     [
       app: :elixir_scope,
       version: "0.1.0",
-      elixir: "~> 1.14",
+      elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      aliases: aliases(),
+      
+      # Test configuration
       test_coverage: [tool: ExCoveralls],
       preferred_cli_env: [
         coveralls: :test,
         "coveralls.detail": :test,
         "coveralls.post": :test,
-        "coveralls.html": :test
+        "coveralls.html": :test,
+        "test.trace": :test,
+        "test.live": :test,
+        "test.all": :test,
+        "test.fast": :test
       ],
       dialyzer: [
         plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
@@ -53,7 +60,20 @@ defmodule ElixirScope.MixProject do
       {:jason, "~> 1.4"},
       
       # HTTP client for LLM providers
-      {:httpoison, "~> 2.0"}
+      {:httpoison, "~> 2.0"},
+      
+      # JSON Web Token library
+      {:joken, "~> 2.6"}
+    ]
+  end
+
+  defp aliases do
+    [
+      # Custom test aliases for better output
+      "test.trace": ["test --trace --exclude live_api"],
+      "test.live": ["test --only live_api"],
+      "test.all": ["test --include live_api"],
+      "test.fast": ["test --exclude live_api --max-cases 48"]
     ]
   end
 end 

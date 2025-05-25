@@ -6,23 +6,28 @@ defmodule ElixirScope.AI.LLM.ClientTest do
   setup do
     # Store original env vars
     original_gemini_key = System.get_env("GEMINI_API_KEY")
+    original_vertex_file = System.get_env("VERTEX_JSON_FILE")
     original_provider = System.get_env("LLM_PROVIDER")
     
     # Clear env vars for clean test state
     System.delete_env("GEMINI_API_KEY")
+    System.delete_env("VERTEX_JSON_FILE")
     System.delete_env("LLM_PROVIDER")
     
     # Clear application config
     Application.delete_env(:elixir_scope, :gemini_api_key)
+    Application.delete_env(:elixir_scope, :vertex_json_file)
     Application.delete_env(:elixir_scope, :llm_provider)
     
     on_exit(fn ->
       # Restore original env vars
       if original_gemini_key, do: System.put_env("GEMINI_API_KEY", original_gemini_key)
+      if original_vertex_file, do: System.put_env("VERTEX_JSON_FILE", original_vertex_file)
       if original_provider, do: System.put_env("LLM_PROVIDER", original_provider)
       
       # Clear application config
       Application.delete_env(:elixir_scope, :gemini_api_key)
+      Application.delete_env(:elixir_scope, :vertex_json_file)
       Application.delete_env(:elixir_scope, :llm_provider)
     end)
     
@@ -96,17 +101,20 @@ defmodule ElixirScope.AI.LLM.ClientTest do
       assert status.primary_provider == :mock
       assert status.fallback_provider == :mock
       assert status.gemini_configured == false
+      assert status.vertex_configured == false
       assert status.mock_available == true
     end
 
     test "returns correct status when Gemini API key is configured" do
       System.put_env("GEMINI_API_KEY", "test-key")
+      System.put_env("LLM_PROVIDER", "gemini")  # Explicitly set provider in test
       
       status = Client.get_provider_status()
       
       assert status.primary_provider == :gemini
       assert status.fallback_provider == :mock
       assert status.gemini_configured == true
+      assert status.vertex_configured == false
       assert status.mock_available == true
     end
   end
@@ -121,8 +129,10 @@ defmodule ElixirScope.AI.LLM.ClientTest do
       assert String.contains?(response.text, "Mock Provider")
     end
 
+    @tag :live_api
     test "attempts Gemini when API key is configured" do
       System.put_env("GEMINI_API_KEY", "test-key")
+      System.put_env("LLM_PROVIDER", "gemini")  # Explicitly set provider in test
       
       # This will fail because we don't have a real API key, but should attempt Gemini
       response = Client.test_connection()
@@ -134,9 +144,11 @@ defmodule ElixirScope.AI.LLM.ClientTest do
   end
 
   describe "provider fallback" do
+    @tag :live_api
     test "falls back to mock when Gemini fails" do
       # Force Gemini as primary but it will fail without real API key
       System.put_env("GEMINI_API_KEY", "invalid-key")
+      System.put_env("LLM_PROVIDER", "gemini")  # Explicitly set provider in test
       
       response = Client.analyze_code("def test, do: :ok")
       

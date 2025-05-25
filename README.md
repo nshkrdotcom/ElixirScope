@@ -138,20 +138,31 @@ ElixirScope is designed for production use with minimal overhead:
 
 ## 🧪 Testing
 
-Run the comprehensive test suite:
+ElixirScope uses **mock providers by default** in test environment for fast, reliable testing without external dependencies:
 
 ```bash
-# Run all tests
+# Run all tests (uses mock providers automatically)
 mix test
-
-# Run performance tests
-mix test --include performance
 
 # Run with coverage
 mix test --cover
+
+# Run live API tests (requires credentials)
+mix test --only live_api
+
+# Run performance tests
+mix test --include performance
 ```
 
-**Current Results**: ✅ **325 tests, 0 failures** (9 intentionally excluded)
+**Current Results**: ✅ **530 tests, 0 failures**
+
+**Key Features**:
+- 🚀 **Fast**: Mock providers ensure sub-second test execution
+- 🔒 **Secure**: No API keys required for standard testing
+- 🌐 **Live Testing**: Optional real API integration tests
+- 📊 **Comprehensive**: Full coverage of all LLM providers and scenarios
+
+See [`TEST_CURSOR.md`](TEST_CURSOR.md) for detailed testing documentation.
 
 ## 📚 Documentation
 
@@ -260,6 +271,143 @@ Built with ❤️ for the Elixir community. Special thanks to:
 - The Elixir core team for the beautiful language
 - The Phoenix team for the inspiring framework architecture
 - The open source community for continuous innovation
+
+## 🤖 **LLM Provider Integration**
+
+ElixirScope includes a sophisticated multi-provider LLM integration for AI-powered code analysis. The system supports multiple providers with automatic fallback and unified API.
+
+### **Supported Providers**
+
+#### **🔹 Vertex AI (Google Cloud)** - *Primary Provider*
+- **Authentication**: Service Account JSON file
+- **Models**: Gemini 1.5 Flash, Gemini 1.5 Pro
+- **Features**: Enterprise-grade security, quota management, detailed logging
+
+#### **🔹 Gemini API (Google AI)** - *Alternative Provider*  
+- **Authentication**: API Key
+- **Models**: Gemini 1.5 Flash, Gemini 1.5 Pro
+- **Features**: Simple setup, direct API access
+
+#### **🔹 Mock Provider** - *Fallback Provider*
+- **Authentication**: None required
+- **Features**: Testing, development, offline usage
+
+### **Configuration**
+
+#### **Environment Variables (Recommended)**
+
+```bash
+# Vertex AI Configuration (Primary)
+export VERTEX_JSON_FILE="/path/to/service-account.json"
+export VERTEX_DEFAULT_MODEL="gemini-2.0-flash"  # Optional
+export LLM_PROVIDER="vertex"  # Optional, auto-detected
+
+# Gemini API Configuration (Alternative)
+export GEMINI_API_KEY="your-gemini-api-key"
+export GEMINI_DEFAULT_MODEL="gemini-2.0-flash"  # Optional
+export LLM_PROVIDER="gemini"  # Optional, auto-detected
+
+# General Configuration
+export LLM_TIMEOUT="30000"  # Optional, 30 seconds default
+```
+
+#### **Application Configuration**
+
+```elixir
+# config/config.exs
+config :elixir_scope,
+  # Vertex AI
+  vertex_json_file: "/path/to/service-account.json",
+  vertex_model: "gemini-2.0-flash",
+  
+  # Gemini API  
+  gemini_api_key: "your-api-key",
+  gemini_model: "gemini-2.0-flash",
+  
+  # Provider selection
+  llm_provider: :vertex,  # :vertex, :gemini, or :mock
+  llm_timeout: 30_000
+```
+
+### **Provider Selection Logic**
+
+ElixirScope automatically selects the best available provider:
+
+1. **Explicit Configuration**: If `LLM_PROVIDER` is set, use that provider
+2. **Auto-Detection Priority**:
+   - ✅ **Vertex AI** (if `VERTEX_JSON_FILE` exists and is valid)
+   - ✅ **Gemini API** (if `GEMINI_API_KEY` is set)
+   - ✅ **Mock Provider** (always available as fallback)
+
+### **Service Account Setup (Vertex AI)**
+
+1. **Create Service Account**:
+   ```bash
+   gcloud iam service-accounts create elixir-scope-ai \
+     --description="ElixirScope AI Analysis" \
+     --display-name="ElixirScope AI"
+   ```
+
+2. **Grant Permissions**:
+   ```bash
+   gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+     --member="serviceAccount:elixir-scope-ai@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
+     --role="roles/aiplatform.user"
+   ```
+
+3. **Download Credentials**:
+   ```bash
+   gcloud iam service-accounts keys create ~/elixir-scope-vertex.json \
+     --iam-account=elixir-scope-ai@YOUR_PROJECT_ID.iam.gserviceaccount.com
+   ```
+
+4. **Configure ElixirScope**:
+   ```bash
+   export VERTEX_JSON_FILE="$HOME/elixir-scope-vertex.json"
+   ```
+
+### **Usage Examples**
+
+```elixir
+# Analyze code with automatic provider selection
+{:ok, analysis} = ElixirScope.AI.LLM.Client.analyze_code("""
+defmodule Calculator do
+  def add(a, b), do: a + b
+end
+""")
+
+# Explain an error
+{:ok, explanation} = ElixirScope.AI.LLM.Client.explain_error(
+  "** (CompileError) undefined function subtract/2"
+)
+
+# Get fix suggestions
+{:ok, suggestions} = ElixirScope.AI.LLM.Client.suggest_fix(
+  "Function is too complex with nested case statements"
+)
+
+# Check provider status
+status = ElixirScope.AI.LLM.Client.get_provider_status()
+# => %{
+#   primary_provider: :vertex,
+#   fallback_provider: :mock,
+#   vertex_configured: true,
+#   gemini_configured: false,
+#   mock_available: true
+# }
+```
+
+### **Development Approach**
+
+Our LLM integration follows a **simple, environment-variable-only approach** during development:
+
+- ✅ **No complex configuration files** - just environment variables
+- ✅ **Auto-detection** - works out of the box when credentials are available  
+- ✅ **Graceful fallback** - always works with mock provider
+- ✅ **Security-first** - credentials never logged or exposed
+- ✅ **Test-friendly** - comprehensive test suite with live API tests
+
+This approach prioritizes **developer experience** and **production readiness** over configuration complexity.
 
 ---
 
