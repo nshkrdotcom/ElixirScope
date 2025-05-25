@@ -7,7 +7,7 @@ defmodule ElixirScope.AI.LLM.Providers.MockTest do
   describe "analyze_code/2" do
     test "returns successful response for simple code" do
       code = "def hello, do: :world"
-      response = Mock.analyze_code(code)
+      response = Mock.analyze_code(code, %{})
       
       assert %Response{} = response
       assert response.success == true
@@ -25,7 +25,7 @@ defmodule ElixirScope.AI.LLM.Providers.MockTest do
         def hello, do: :world
       end
       """
-      response = Mock.analyze_code(code)
+      response = Mock.analyze_code(code, %{})
       
       assert response.success == true
       assert String.contains?(response.text, "module definition")
@@ -33,7 +33,7 @@ defmodule ElixirScope.AI.LLM.Providers.MockTest do
 
     test "returns different analysis for function code" do
       code = "def complex_function(x, y), do: x + y"
-      response = Mock.analyze_code(code)
+      response = Mock.analyze_code(code, %{})
       
       assert response.success == true
       assert String.contains?(response.text, "function")
@@ -54,7 +54,7 @@ defmodule ElixirScope.AI.LLM.Providers.MockTest do
   describe "explain_error/2" do
     test "returns successful response for error explanation" do
       error = "undefined function foo/0"
-      response = Mock.explain_error(error)
+      response = Mock.explain_error(error, %{})
       
       assert %Response{} = response
       assert response.success == true
@@ -68,7 +68,7 @@ defmodule ElixirScope.AI.LLM.Providers.MockTest do
 
     test "provides specific explanation for undefined errors" do
       error = "undefined variable x"
-      response = Mock.explain_error(error)
+      response = Mock.explain_error(error, %{})
       
       assert response.success == true
       assert String.contains?(response.text, "defined or imported")
@@ -77,7 +77,7 @@ defmodule ElixirScope.AI.LLM.Providers.MockTest do
 
     test "provides specific explanation for syntax errors" do
       error = "syntax error before: ')'"
-      response = Mock.explain_error(error)
+      response = Mock.explain_error(error, %{})
       
       assert response.success == true
       assert String.contains?(response.text, "syntax error")
@@ -98,7 +98,7 @@ defmodule ElixirScope.AI.LLM.Providers.MockTest do
   describe "suggest_fix/2" do
     test "returns successful response for fix suggestion" do
       problem = "function is too complex"
-      response = Mock.suggest_fix(problem)
+      response = Mock.suggest_fix(problem, %{})
       
       assert %Response{} = response
       assert response.success == true
@@ -112,7 +112,7 @@ defmodule ElixirScope.AI.LLM.Providers.MockTest do
 
     test "provides specific suggestions for performance issues" do
       problem = "performance is slow"
-      response = Mock.suggest_fix(problem)
+      response = Mock.suggest_fix(problem, %{})
       
       assert response.success == true
       assert String.contains?(response.text, "performance")
@@ -121,7 +121,7 @@ defmodule ElixirScope.AI.LLM.Providers.MockTest do
 
     test "provides specific suggestions for complexity issues" do
       problem = "code complexity is high"
-      response = Mock.suggest_fix(problem)
+      response = Mock.suggest_fix(problem, %{})
       
       assert response.success == true
       assert String.contains?(response.text, "complexity")
@@ -130,7 +130,7 @@ defmodule ElixirScope.AI.LLM.Providers.MockTest do
 
     test "provides specific suggestions for testing issues" do
       problem = "need better test coverage"
-      response = Mock.suggest_fix(problem)
+      response = Mock.suggest_fix(problem, %{})
       
       assert response.success == true
       assert String.contains?(response.text, "testing")

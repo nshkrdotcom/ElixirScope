@@ -6,13 +6,16 @@ defmodule ElixirScope.AI.LLM.Providers.Mock do
   useful for testing, development, and when real providers fail.
   """
 
+  @behaviour ElixirScope.AI.LLM.Provider
+
   alias ElixirScope.AI.LLM.Response
 
   @doc """
   Analyzes code and returns a mock analysis.
   """
+  @impl true
   @spec analyze_code(String.t(), map()) :: Response.t()
-  def analyze_code(code, context \\ %{}) do
+  def analyze_code(code, context) do
     analysis = generate_code_analysis(code, context)
     
     Response.success(
@@ -30,8 +33,9 @@ defmodule ElixirScope.AI.LLM.Providers.Mock do
   @doc """
   Explains an error and returns a mock explanation.
   """
+  @impl true
   @spec explain_error(String.t(), map()) :: Response.t()
-  def explain_error(error_message, context \\ %{}) do
+  def explain_error(error_message, context) do
     explanation = generate_error_explanation(error_message, context)
     
     Response.success(
@@ -49,8 +53,9 @@ defmodule ElixirScope.AI.LLM.Providers.Mock do
   @doc """
   Suggests a fix and returns a mock suggestion.
   """
+  @impl true
   @spec suggest_fix(String.t(), map()) :: Response.t()
-  def suggest_fix(problem_description, context \\ %{}) do
+  def suggest_fix(problem_description, context) do
     suggestion = generate_fix_suggestion(problem_description, context)
     
     Response.success(
@@ -78,6 +83,17 @@ defmodule ElixirScope.AI.LLM.Providers.Mock do
     end
     
     Response.error(error_message, :mock, %{simulated: true, error_type: error_type})
+  end
+
+  @impl true
+  def provider_name, do: :mock
+
+  @impl true
+  def configured?, do: true
+
+  @impl true
+  def test_connection do
+    analyze_code("def test, do: :ok", %{test: true})
   end
 
   # Private helper functions

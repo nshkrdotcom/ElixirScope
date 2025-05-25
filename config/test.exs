@@ -40,4 +40,9 @@ config :elixir_scope,
   interface: [
     iex_helpers: false,             # Disable IEx helpers in tests
     query_timeout: 1000             # Quick timeout for tests
-  ] 
+  ]
+
+# Exclude live API tests by default
+# To run live tests: mix test --only live_api
+# To include all tests: mix test --include live_api
+ExUnit.configure(exclude: [:live_api]) 

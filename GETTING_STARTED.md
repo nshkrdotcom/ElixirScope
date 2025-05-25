@@ -1,6 +1,3 @@
-Okay, here's a comprehensive `GETTING_STARTED.md` based on the provided `README.md` and incorporating the detailed logical analysis of how ElixirScope's AST transformation and instrumentation works.
-
-```markdown
 # Getting Started with ElixirScope
 
 Welcome to ElixirScope! This guide will walk you through installing, configuring, and understanding how to use ElixirScope to gain deep insights into your Elixir applications. ElixirScope aims to provide "Execution Cinema" – a comprehensive, AI-guided view of your application's runtime behavior, enabling powerful time-travel debugging.
@@ -307,4 +304,3 @@ These events are correlated by the `EventCorrelator` to build a causal graph of 
 *   **API Documentation** (`mix hex.docs` or online): For detailed information on public modules and functions.
 
 Happy "Execution Cinema" debugging with ElixirScope!
-```

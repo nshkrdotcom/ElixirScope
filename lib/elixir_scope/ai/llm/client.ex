@@ -147,4 +147,6 @@ defmodule ElixirScope.AI.LLM.Client do
         end
     end
   end
+
+
 end 

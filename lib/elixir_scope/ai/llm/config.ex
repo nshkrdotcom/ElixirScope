@@ -60,6 +60,7 @@ defmodule ElixirScope.AI.LLM.Config do
   @spec get_gemini_model() :: String.t()
   def get_gemini_model do
     Application.get_env(:elixir_scope, :gemini_model) ||
+      System.get_env("GEMINI_DEFAULT_MODEL") ||
       System.get_env("GEMINI_MODEL") ||
       "gemini-1.5-flash"
   end

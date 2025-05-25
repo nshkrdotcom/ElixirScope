@@ -16,6 +16,7 @@ defmodule ElixirScope.AI.LLM.ConfigTest do
     System.delete_env("LLM_PROVIDER")
     System.delete_env("GEMINI_BASE_URL")
     System.delete_env("GEMINI_MODEL")
+    System.delete_env("GEMINI_DEFAULT_MODEL")
     System.delete_env("LLM_TIMEOUT")
     
     # Clear application config
@@ -110,9 +111,20 @@ defmodule ElixirScope.AI.LLM.ConfigTest do
       assert Config.get_gemini_model() == "gemini-1.5-flash"
     end
 
-    test "returns custom model from environment" do
+    test "returns custom model from GEMINI_DEFAULT_MODEL environment" do
+      System.put_env("GEMINI_DEFAULT_MODEL", "gemini-1.5-pro")
+      assert Config.get_gemini_model() == "gemini-1.5-pro"
+    end
+
+    test "returns custom model from GEMINI_MODEL environment" do
       System.put_env("GEMINI_MODEL", "gemini-pro")
       assert Config.get_gemini_model() == "gemini-pro"
+    end
+
+    test "GEMINI_DEFAULT_MODEL takes precedence over GEMINI_MODEL" do
+      System.put_env("GEMINI_DEFAULT_MODEL", "gemini-1.5-pro")
+      System.put_env("GEMINI_MODEL", "gemini-pro")
+      assert Config.get_gemini_model() == "gemini-1.5-pro"
     end
   end
 

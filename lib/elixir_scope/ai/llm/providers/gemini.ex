@@ -6,13 +6,16 @@ defmodule ElixirScope.AI.LLM.Providers.Gemini do
   error explanation, and fix suggestions.
   """
 
+  @behaviour ElixirScope.AI.LLM.Provider
+
   alias ElixirScope.AI.LLM.{Response, Config}
 
   @doc """
   Analyzes code using Gemini API.
   """
+  @impl true
   @spec analyze_code(String.t(), map()) :: Response.t()
-  def analyze_code(code, context \\ %{}) do
+  def analyze_code(code, context) do
     prompt = build_code_analysis_prompt(code, context)
     make_gemini_request(prompt, "code_analysis")
   end
@@ -20,8 +23,9 @@ defmodule ElixirScope.AI.LLM.Providers.Gemini do
   @doc """
   Explains an error using Gemini API.
   """
+  @impl true
   @spec explain_error(String.t(), map()) :: Response.t()
-  def explain_error(error_message, context \\ %{}) do
+  def explain_error(error_message, context) do
     prompt = build_error_explanation_prompt(error_message, context)
     make_gemini_request(prompt, "error_explanation")
   end
@@ -29,8 +33,9 @@ defmodule ElixirScope.AI.LLM.Providers.Gemini do
   @doc """
   Suggests a fix using Gemini API.
   """
+  @impl true
   @spec suggest_fix(String.t(), map()) :: Response.t()
-  def suggest_fix(problem_description, context \\ %{}) do
+  def suggest_fix(problem_description, context) do
     prompt = build_fix_suggestion_prompt(problem_description, context)
     make_gemini_request(prompt, "fix_suggestion")
   end
@@ -38,26 +43,83 @@ defmodule ElixirScope.AI.LLM.Providers.Gemini do
   # Private functions
 
   defp make_gemini_request(prompt, analysis_type) do
-    case Config.get_gemini_api_key() do
-      nil ->
-        Response.error("Gemini API key not configured", :gemini, %{analysis_type: analysis_type})
-      
-      api_key ->
-        perform_request(prompt, api_key, analysis_type)
+    require Logger
+    Logger.info("Gemini: Starting #{analysis_type} request")
+    
+    # In test environment, don't make real HTTP requests unless explicitly configured
+    if Mix.env() == :test and not test_mode_allows_http?() do
+      Logger.warning("Gemini: API not available in test mode without valid API key")
+      Response.error("Gemini API not available in test mode without valid API key", :gemini, %{analysis_type: analysis_type})
+    else
+      case get_api_key() do
+        nil ->
+          Logger.error("Gemini: API key not configured")
+          Response.error("Gemini API key not configured", :gemini, %{analysis_type: analysis_type})
+        
+        api_key when byte_size(api_key) < 10 ->
+          Logger.error("Gemini: API key appears to be invalid (length: #{byte_size(api_key)})")
+          Response.error("Gemini API key appears to be invalid", :gemini, %{analysis_type: analysis_type})
+        
+        api_key ->
+          Logger.info("Gemini: API key found (length: #{byte_size(api_key)})")
+          perform_request(prompt, api_key, analysis_type)
+      end
+    end
+  end
+
+  defp test_mode_allows_http? do
+    # Only allow HTTP requests in test mode if we have a valid API key
+    case get_api_key() do
+      nil -> false
+      api_key when byte_size(api_key) < 10 -> false
+      _api_key -> true
+    end
+  end
+
+  defp get_api_key do
+    require Logger
+    env_key = System.get_env("GEMINI_API_KEY")
+    config_key = Config.get_gemini_api_key()
+    
+    cond do
+      env_key ->
+        Logger.debug("Gemini: Using API key from GEMINI_API_KEY environment variable")
+        env_key
+      config_key ->
+        Logger.debug("Gemini: Using API key from config")
+        config_key
+      true ->
+        Logger.warning("Gemini: No API key found in environment or config")
+        nil
     end
   end
 
   defp perform_request(prompt, _api_key, analysis_type) do
+    require Logger
     url = build_api_url()
     headers = build_headers()
     body = build_request_body(prompt)
     
-    case HTTPoison.post(url, body, headers, timeout: Config.get_request_timeout()) do
+    # Add appropriate timeout for tests and better error handling
+    # Use longer timeout for live API tests, shorter for unit tests
+    timeout = cond do
+      Mix.env() == :test and test_mode_allows_http?() -> 30_000  # 30 seconds for live API tests
+      Mix.env() == :test -> 5_000  # 5 seconds for unit tests
+      true -> Config.get_request_timeout()  # Default for production
+    end
+    
+    case HTTPoison.post(url, body, headers, timeout: timeout, recv_timeout: timeout) do
       {:ok, %HTTPoison.Response{status_code: 200, body: response_body}} ->
         parse_success_response(response_body, analysis_type)
       
       {:ok, %HTTPoison.Response{status_code: status_code, body: error_body}} ->
         parse_error_response(status_code, error_body, analysis_type)
+      
+      {:error, %HTTPoison.Error{reason: :timeout}} ->
+        Response.error("Request timeout - check network connection and API key", :gemini, %{analysis_type: analysis_type})
+      
+      {:error, %HTTPoison.Error{reason: :nxdomain}} ->
+        Response.error("DNS resolution failed - check network connection", :gemini, %{analysis_type: analysis_type})
       
       {:error, %HTTPoison.Error{reason: reason}} ->
         Response.error("HTTP request failed: #{reason}", :gemini, %{analysis_type: analysis_type})
@@ -67,7 +129,7 @@ defmodule ElixirScope.AI.LLM.Providers.Gemini do
   defp build_api_url do
     base_url = Config.get_gemini_base_url()
     model = Config.get_gemini_model()
-    api_key = Config.get_gemini_api_key()
+    api_key = get_api_key()
     
     "#{base_url}/v1beta/models/#{model}:generateContent?key=#{api_key}"
   end
@@ -234,5 +296,22 @@ defmodule ElixirScope.AI.LLM.Providers.Gemini do
 
     Focus on practical, implementable solutions.
     """
+  end
+
+  @impl true
+  def provider_name, do: :gemini
+
+  @impl true
+  def configured? do
+    case get_api_key() do
+      nil -> false
+      api_key when byte_size(api_key) < 10 -> false
+      _api_key -> true
+    end
+  end
+
+  @impl true
+  def test_connection do
+    analyze_code("def test, do: :ok", %{test: true})
   end
 end 
