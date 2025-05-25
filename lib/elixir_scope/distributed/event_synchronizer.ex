@@ -201,20 +201,15 @@ defmodule ElixirScope.Distributed.EventSynchronizer do
         regular_data
     end
 
-    %ElixirScope.Events.Event{
-      id: sync_event.id,
+    %ElixirScope.Events{
+      event_id: sync_event.id,
       timestamp: sync_event.timestamp,
       wall_time: sync_event.wall_time,
       node: sync_event.node,
       pid: sync_event.pid,
       correlation_id: sync_event.correlation_id,
       event_type: sync_event.event_type,
-      data: restored_data,
-      sync_metadata: %{
-        synced_from: source_node,
-        synced_at: GlobalClock.now(),
-        checksum: sync_event.checksum
-      }
+      data: restored_data
     }
   end
 end

@@ -393,6 +393,94 @@ defmodule ElixirScope.Storage.DataAccess do
     :ok
   end
 
+  @doc """
+  Queries events since a given timestamp.
+  """
+  @spec get_events_since(non_neg_integer()) :: [Events.event()]
+  def get_events_since(since_timestamp) do
+    # This assumes we have a global storage instance - in practice this would be managed by a GenServer
+    case get_default_storage() do
+      {:ok, storage} ->
+        case query_by_time_range(storage, since_timestamp, Utils.monotonic_timestamp(), limit: 10_000) do
+          {:ok, events} -> events
+          {:error, _} -> []
+        end
+      {:error, _} -> []
+    end
+  end
+
+  @doc """
+  Checks if an event exists by ID.
+  """
+  @spec event_exists?(event_id()) :: boolean()
+  def event_exists?(event_id) do
+    case get_default_storage() do
+      {:ok, storage} ->
+        case get_event(storage, event_id) do
+          {:ok, _} -> true
+          {:error, :not_found} -> false
+        end
+      {:error, _} -> false
+    end
+  end
+
+  @doc """
+  Stores multiple events (simplified interface).
+  """
+  @spec store_events([Events.event()]) :: :ok | {:error, term()}
+  def store_events(events) when is_list(events) do
+    case get_default_storage() do
+      {:ok, storage} ->
+        case store_events(storage, events) do
+          {:ok, _count} -> :ok
+          error -> error
+        end
+      error -> error
+    end
+  end
+
+  @doc """
+  Gets the current instrumentation plan.
+  """
+  @spec get_instrumentation_plan() :: {:ok, map()} | {:error, :not_found}
+  def get_instrumentation_plan() do
+    case get_default_storage() do
+      {:ok, storage} ->
+        case :ets.lookup(storage.stats_table, :instrumentation_plan) do
+          [{:instrumentation_plan, plan}] -> {:ok, plan}
+          [] -> {:error, :not_found}
+        end
+      error -> error
+    end
+  end
+
+  @doc """
+  Stores an instrumentation plan.
+  """
+  @spec store_instrumentation_plan(map()) :: :ok | {:error, term()}
+  def store_instrumentation_plan(plan) do
+    case get_default_storage() do
+      {:ok, storage} ->
+        :ets.insert(storage.stats_table, {:instrumentation_plan, plan})
+        :ok
+      error -> error
+    end
+  end
+
+  # Default storage management (simplified - in production this would be a GenServer)
+  defp get_default_storage() do
+    case :persistent_term.get(:elixir_scope_default_storage, nil) do
+      nil ->
+        case new(name: :elixir_scope_default) do
+          {:ok, storage} ->
+            :persistent_term.put(:elixir_scope_default_storage, storage)
+            {:ok, storage}
+          error -> error
+        end
+      storage -> {:ok, storage}
+    end
+  end
+
   # Private functions
 
   defp extract_pid(%Events.FunctionExecution{caller_pid: pid}), do: pid

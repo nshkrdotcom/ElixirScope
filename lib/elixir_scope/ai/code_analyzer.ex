@@ -9,9 +9,7 @@ defmodule ElixirScope.AI.CodeAnalyzer do
   with actual LLM integration.
   """
 
-  alias ElixirScope.AI.PatternRecognizer
-  alias ElixirScope.AI.ComplexityAnalyzer
-  alias ElixirScope.AI.InstrumentationPlanner
+  alias ElixirScope.AI.{ComplexityAnalyzer, PatternRecognizer}
 
   defstruct [
     :module_type,
@@ -25,7 +23,8 @@ defmodule ElixirScope.AI.CodeAnalyzer do
     :performance_critical,
     :database_interactions,
     :recommended_instrumentation,
-    :confidence_score
+    :confidence_score,
+    :has_mount
   ]
 
   @doc """
@@ -48,7 +47,8 @@ defmodule ElixirScope.AI.CodeAnalyzer do
     module_analyses =
       elixir_files
       |> Enum.map(&analyze_file/1)
-      |> Enum.reject(&match?({:error, _}, &1))
+      |> Enum.filter(&match?({:ok, _}, &1))
+      |> Enum.map(fn {:ok, analysis} -> analysis end)
 
     project_structure = analyze_project_structure(module_analyses)
     supervision_tree = build_supervision_tree(module_analyses)
@@ -135,7 +135,8 @@ defmodule ElixirScope.AI.CodeAnalyzer do
       performance_critical: complexity.performance_critical,
       database_interactions: patterns.database_interactions,
       recommended_instrumentation: recommend_instrumentation(module_type, complexity, patterns),
-      confidence_score: calculate_confidence(module_type, patterns)
+      confidence_score: calculate_confidence(module_type, patterns),
+      has_mount: :mount in patterns.callbacks
     }
   end
 
@@ -202,7 +203,7 @@ defmodule ElixirScope.AI.CodeAnalyzer do
         if complexity.state_complexity == :high do
           :full_state_tracking
         else
-          :basic_state_tracking
+          :state_tracking
         end
 
       :supervisor ->
@@ -210,7 +211,7 @@ defmodule ElixirScope.AI.CodeAnalyzer do
 
       :phoenix_controller ->
         if patterns.database_interactions do
-          :request_lifecycle_with_db
+          :request_lifecycle
         else
           :request_lifecycle
         end
@@ -407,9 +408,8 @@ defmodule ElixirScope.AI.CodeAnalyzer do
   end
 
   defp extract_dependencies(module_analyses) do
-    Enum.flat_map(module_analyses, fn analysis ->
-      # Extract imports, aliases, and use statements
-      # This would need to be implemented based on AST analysis
+    Enum.flat_map(module_analyses, fn _analysis ->
+      # TODO: Extract actual dependencies from analysis
       []
     end)
     |> Enum.uniq()
@@ -434,33 +434,29 @@ defmodule ElixirScope.AI.CodeAnalyzer do
     end)
   end
 
-  defp extract_genserver_calls(module_analyses) do
-    # Extract GenServer call patterns from module ASTs
-    # Implementation would analyze AST for GenServer.call/cast patterns
+  defp extract_genserver_calls(_module_analyses) do
+    # TODO: Implement GenServer call pattern extraction
     []
   end
 
-  defp extract_pubsub_usage(module_analyses) do
-    # Extract Phoenix.PubSub usage patterns
-    # Implementation would analyze AST for PubSub broadcast/subscribe patterns
+  defp extract_pubsub_usage(_module_analyses) do
+    # TODO: Implement PubSub usage pattern extraction
     []
   end
 
-  defp analyze_process_links(module_analyses) do
-    # Analyze Process.link, spawn_link, and supervision relationships
-    # Implementation would examine AST for process linking patterns
+  defp analyze_process_links(_module_analyses) do
+    # TODO: Implement process link analysis
     []
   end
 
-  defp in_critical_path?(module, project_analysis) do
-    # Determine if module is in critical path based on supervision tree and call patterns
-    # Supervisors and GenServers at top level are typically critical
-    module.module_type in [:supervisor, :genserver]
+  defp in_critical_path?(_module, _project_analysis) do
+    # TODO: Implement critical path analysis
+    false
   end
 
   defp enhance_to_full_tracing(base_type) do
     case base_type do
-      :basic_state_tracking -> :full_state_tracking
+      :state_tracking -> :full_state_tracking
       :request_lifecycle -> :request_lifecycle_with_db
       :minimal -> :performance_monitoring
       other -> other
@@ -469,14 +465,14 @@ defmodule ElixirScope.AI.CodeAnalyzer do
 
   defp enhance_to_detailed_tracing(base_type) do
     case base_type do
-      :minimal -> :basic_state_tracking
+      :minimal -> :state_tracking
       other -> other
     end
   end
 
   defp simplify_instrumentation(base_type) do
     case base_type do
-      :full_state_tracking -> :basic_state_tracking
+      :full_state_tracking -> :state_tracking
       :request_lifecycle_with_db -> :request_lifecycle
       :performance_monitoring -> :minimal
       other -> other
@@ -540,9 +536,9 @@ defmodule ElixirScope.AI.CodeAnalyzer do
 
   defp recommend_function_instrumentation(complexity, performance_indicators) do
     cond do
+      complexity.score > 8 -> :detailed_tracing  # Prioritize high complexity
+      complexity.nesting_depth > 3 -> :detailed_tracing
       performance_indicators.is_critical -> :performance_monitoring
-      complexity.score > 8 -> :detailed_tracing
-      complexity.nesting_depth > 3 -> :basic_tracing
       true -> :minimal
     end
   end
@@ -576,16 +572,81 @@ defmodule ElixirScope.AI.CodeAnalyzer do
   defp extract_message_pattern(atom) when is_atom(atom), do: atom
   defp extract_message_pattern(_), do: :unknown
 
-  defp extract_topic_pattern({:<<>>, _, [topic_string]}) when is_binary(topic_string) do
-    topic_string
+  defp extract_topic_pattern({:<<>>, _, parts}) do
+    # Handle string interpolation like "user:#{user_id}"
+    case parts do
+      [topic] when is_binary(topic) -> 
+        topic
+      [prefix, {:"::", _, [{{:., _, [Kernel, :to_string]}, _, [_expr]}, {:binary, _, _}]}] when is_binary(prefix) ->
+        # Handle interpolation like "user:#{user_id}" -> "user:*"
+        prefix <> "*"
+      [prefix | _rest] when is_binary(prefix) ->
+        # Handle any other interpolation patterns
+        prefix <> "*"
+      _ -> 
+        :unknown
+    end
+  end
+  defp extract_topic_pattern(topic) when is_binary(topic) do
+    topic
   end
   defp extract_topic_pattern(_), do: :unknown
 
   defp extract_message_type({:{}, _, [type | _]}) when is_atom(type), do: type
+  defp extract_message_type({type, _}) when is_atom(type), do: type  # Handle 2-element tuples
+  defp extract_message_type(atom) when is_atom(atom), do: atom
   defp extract_message_type(_), do: :unknown
 
   defp extract_pubsub_server({:__aliases__, _, module_parts}) do
     Module.concat(module_parts)
   end
   defp extract_pubsub_server(_), do: :unknown
+
+  # Stub implementations for missing functions
+  # TODO: Implement these functions properly in future phases
+
+  defp calculate_impact(_instrumentation_strategies) do
+    %{
+      performance_overhead: 0.01,
+      memory_usage: "minimal",
+      coverage: 0.8
+    }
+  end
+
+  defp generate_configuration(_instrumentation_strategies) do
+    %{
+      sampling_rate: 1.0,
+      buffer_size: 1024,
+      async_processing: true
+    }
+  end
+
+  defp identify_correlation_opportunities(_call_patterns, _pubsub_patterns) do
+    []
+  end
+
+  defp generate_project_plan(_module_analyses) do
+    %{
+      phases: [:foundation, :instrumentation, :analysis],
+      estimated_duration: "2-3 weeks",
+      priority_modules: []
+    }
+  end
+
+  defp enhance_instrumentation(base_recommendation) do
+    case base_recommendation do
+      :minimal -> :state_tracking
+      :state_tracking -> :full_state_tracking
+      other -> other
+    end
+  end
+
+  defp generate_priority_reason(_module, score) do
+    cond do
+      score >= 15 -> "Critical path component with high complexity"
+      score >= 10 -> "Important component requiring monitoring"
+      score >= 6 -> "Moderate priority for instrumentation"
+      true -> "Low priority, minimal instrumentation needed"
+    end
+  end
 end

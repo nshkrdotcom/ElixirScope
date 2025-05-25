@@ -52,7 +52,7 @@ defmodule ElixirScope.Phoenix.Integration do
     )
   end
 
-  def handle_http_event([:phoenix, :endpoint, :start], measurements, metadata, _config) do
+  def handle_http_event([:phoenix, :endpoint, :start], _measurements, metadata, _config) do
     correlation_id = generate_correlation_id()
 
     # Store correlation ID in conn for downstream use
@@ -81,7 +81,7 @@ defmodule ElixirScope.Phoenix.Integration do
     )
   end
 
-  def handle_http_event([:phoenix, :controller, :start], measurements, metadata, _config) do
+  def handle_http_event([:phoenix, :controller, :start], _measurements, metadata, _config) do
     correlation_id = get_correlation_id(metadata.conn)
 
     InstrumentationRuntime.report_phoenix_controller_entry(

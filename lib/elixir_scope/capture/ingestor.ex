@@ -169,28 +169,30 @@ defmodule ElixirScope.Capture.Ingestor do
   end
 
   @doc """
-  Batch ingestion for better throughput when processing multiple events.
+  Ingests multiple events in batch for improved performance.
   
-  This is more efficient than individual calls when you have multiple events
+  This is more efficient than individual ingestion for large numbers of events
   to process at once.
   """
   @spec ingest_batch(RingBuffer.t(), [Events.event()]) :: {:ok, non_neg_integer()} | {:error, term()}
   def ingest_batch(buffer, events) when is_list(events) do
-    results = Enum.map(events, &RingBuffer.write(buffer, &1))
-    
-    success_count = Enum.count(results, &(&1 == :ok))
-    
-    if success_count == length(events) do
-      {:ok, success_count}
-    else
-      # Return partial success info
-      errors = Enum.filter(results, fn result ->
-        case result do
-          {:error, _} -> true
-          _ -> false
-        end
-      end)
-      {:error, {:partial_success, success_count, errors}}
+    # Optimized batch implementation - use try/catch for fast path
+    try do
+      # Fast path: write all events and count successes in one pass
+      count = fast_batch_write(buffer, events, 0)
+      {:ok, count}
+    catch
+      {:batch_error, success_count, error} ->
+        {:error, {:partial_success, success_count, [error]}}
+    end
+  end
+
+  # Fast batch write helper - optimized for the common success case
+  defp fast_batch_write(_buffer, [], count), do: count
+  defp fast_batch_write(buffer, [event | rest], count) do
+    case RingBuffer.write(buffer, event) do
+      :ok -> fast_batch_write(buffer, rest, count + 1)
+      {:error, reason} -> throw({:batch_error, count, {:error, reason}})
     end
   end
 
@@ -288,5 +290,456 @@ defmodule ElixirScope.Capture.Ingestor do
 
   defp term_size_estimate(term) do
     term |> :erlang.term_to_binary() |> byte_size()
+  end
+
+  # Phoenix-specific ingestion functions
+
+  @doc """
+  Ingests a Phoenix request start event.
+  """
+  @spec ingest_phoenix_request_start(RingBuffer.t(), term(), binary(), binary(), map(), binary()) :: ingest_result()
+  def ingest_phoenix_request_start(buffer, correlation_id, method, path, params, remote_ip) do
+    event = Events.new_event(:phoenix_request_start, %{
+      method: method,
+      path: path,
+      params: Utils.truncate_data(params),
+      remote_ip: remote_ip
+    }, [correlation_id: correlation_id])
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests a Phoenix request complete event.
+  """
+  @spec ingest_phoenix_request_complete(RingBuffer.t(), term(), integer(), binary(), number()) :: ingest_result()
+  def ingest_phoenix_request_complete(buffer, correlation_id, status_code, content_type, duration_ms) do
+    event = Events.new_event(:phoenix_request_complete, %{
+      status_code: status_code,
+      content_type: content_type,
+      duration_ms: duration_ms
+    }, [correlation_id: correlation_id])
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests a Phoenix controller entry event.
+  """
+  @spec ingest_phoenix_controller_entry(RingBuffer.t(), term(), module(), atom(), map()) :: ingest_result()
+  def ingest_phoenix_controller_entry(buffer, correlation_id, controller, action, metadata) do
+    event = Events.new_event(:phoenix_controller_entry, %{
+      controller: controller,
+      action: action,
+      metadata: Utils.truncate_data(metadata)
+    }, [correlation_id: correlation_id])
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests a Phoenix controller exit event.
+  """
+  @spec ingest_phoenix_controller_exit(RingBuffer.t(), term(), module(), atom(), term()) :: ingest_result()
+  def ingest_phoenix_controller_exit(buffer, correlation_id, controller, action, result) do
+    event = Events.new_event(:phoenix_controller_exit, %{
+      controller: controller,
+      action: action,
+      result: Utils.truncate_data(result)
+    }, [correlation_id: correlation_id])
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  # Phoenix Action-specific functions
+
+  @doc """
+  Ingests Phoenix action parameters.
+  """
+  @spec ingest_phoenix_action_params(RingBuffer.t(), atom(), term(), map()) :: ingest_result()
+  def ingest_phoenix_action_params(buffer, action_name, conn, params) do
+    event = Events.new_event(:phoenix_action_params, %{
+      action_name: action_name,
+      conn: Utils.truncate_data(conn),
+      params: Utils.truncate_data(params)
+    })
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests Phoenix action start event.
+  """
+  @spec ingest_phoenix_action_start(RingBuffer.t(), atom(), term()) :: ingest_result()
+  def ingest_phoenix_action_start(buffer, action_name, conn) do
+    event = Events.new_event(:phoenix_action_start, %{
+      action_name: action_name,
+      conn: Utils.truncate_data(conn)
+    })
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests Phoenix action success event.
+  """
+  @spec ingest_phoenix_action_success(RingBuffer.t(), atom(), term(), term()) :: ingest_result()
+  def ingest_phoenix_action_success(buffer, action_name, conn, result) do
+    event = Events.new_event(:phoenix_action_success, %{
+      action_name: action_name,
+      conn: Utils.truncate_data(conn),
+      result: Utils.truncate_data(result)
+    })
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests Phoenix action error event.
+  """
+  @spec ingest_phoenix_action_error(RingBuffer.t(), atom(), term(), atom(), term()) :: ingest_result()
+  def ingest_phoenix_action_error(buffer, action_name, conn, kind, reason) do
+    event = Events.new_event(:phoenix_action_error, %{
+      action_name: action_name,
+      conn: Utils.truncate_data(conn),
+      kind: kind,
+      reason: Utils.truncate_data(reason)
+    })
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests Phoenix action complete event.
+  """
+  @spec ingest_phoenix_action_complete(RingBuffer.t(), atom(), term()) :: ingest_result()
+  def ingest_phoenix_action_complete(buffer, action_name, conn) do
+    event = Events.new_event(:phoenix_action_complete, %{
+      action_name: action_name,
+      conn: Utils.truncate_data(conn)
+    })
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  # LiveView-specific ingestion functions
+
+  @doc """
+  Ingests a LiveView mount start event.
+  """
+  @spec ingest_liveview_mount_start(RingBuffer.t(), term(), module(), map(), map()) :: ingest_result()
+  def ingest_liveview_mount_start(buffer, correlation_id, module, params, session) do
+    event = Events.new_event(:liveview_mount_start, %{
+      module: module,
+      params: Utils.truncate_data(params),
+      session: Utils.truncate_data(session)
+    }, [correlation_id: correlation_id])
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests a LiveView mount complete event.
+  """
+  @spec ingest_liveview_mount_complete(RingBuffer.t(), term(), module(), map()) :: ingest_result()
+  def ingest_liveview_mount_complete(buffer, correlation_id, module, socket_assigns) do
+    event = Events.new_event(:liveview_mount_complete, %{
+      module: module,
+      socket_assigns: Utils.truncate_data(socket_assigns)
+    }, [correlation_id: correlation_id])
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests a LiveView handle_event start event.
+  """
+  @spec ingest_liveview_handle_event_start(RingBuffer.t(), term(), binary(), map(), map()) :: ingest_result()
+  def ingest_liveview_handle_event_start(buffer, correlation_id, event, params, socket_assigns) do
+    event_struct = Events.new_event(:liveview_handle_event_start, %{
+      event: event,
+      params: Utils.truncate_data(params),
+      socket_assigns: Utils.truncate_data(socket_assigns)
+    }, [correlation_id: correlation_id])
+    
+    RingBuffer.write(buffer, event_struct)
+  end
+
+  @doc """
+  Ingests a LiveView handle_event complete event.
+  """
+  @spec ingest_liveview_handle_event_complete(RingBuffer.t(), term(), binary(), map(), map(), term()) :: ingest_result()
+  def ingest_liveview_handle_event_complete(buffer, correlation_id, event, params, before_assigns, result) do
+    event_struct = Events.new_event(:liveview_handle_event_complete, %{
+      event: event,
+      params: Utils.truncate_data(params),
+      before_assigns: Utils.truncate_data(before_assigns),
+      result: Utils.truncate_data(result)
+    }, [correlation_id: correlation_id])
+    
+    RingBuffer.write(buffer, event_struct)
+  end
+
+  @doc """
+  Ingests LiveView assigns change event.
+  """
+  @spec ingest_liveview_assigns(RingBuffer.t(), atom(), term()) :: ingest_result()
+  def ingest_liveview_assigns(buffer, callback_name, socket) do
+    event = Events.new_event(:liveview_assigns_change, %{
+      callback_name: callback_name,
+      socket: Utils.truncate_data(socket)
+    })
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests LiveView event.
+  """
+  @spec ingest_liveview_event(RingBuffer.t(), binary(), map(), term()) :: ingest_result()
+  def ingest_liveview_event(buffer, event, params, socket) do
+    event_struct = Events.new_event(:liveview_event, %{
+      event: event,
+      params: Utils.truncate_data(params),
+      socket: Utils.truncate_data(socket)
+    })
+    
+    RingBuffer.write(buffer, event_struct)
+  end
+
+  @doc """
+  Ingests LiveView callback event.
+  """
+  @spec ingest_liveview_callback(RingBuffer.t(), atom(), term()) :: ingest_result()
+  def ingest_liveview_callback(buffer, callback_name, socket) do
+    event = Events.new_event(:liveview_callback, %{
+      callback_name: callback_name,
+      socket: Utils.truncate_data(socket)
+    })
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests LiveView callback success event.
+  """
+  @spec ingest_liveview_callback_success(RingBuffer.t(), atom(), term(), term()) :: ingest_result()
+  def ingest_liveview_callback_success(buffer, callback_name, socket, result) do
+    event = Events.new_event(:liveview_callback_success, %{
+      callback_name: callback_name,
+      socket: Utils.truncate_data(socket),
+      result: Utils.truncate_data(result)
+    })
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests LiveView callback error event.
+  """
+  @spec ingest_liveview_callback_error(RingBuffer.t(), atom(), term(), atom(), term()) :: ingest_result()
+  def ingest_liveview_callback_error(buffer, callback_name, socket, kind, reason) do
+    event = Events.new_event(:liveview_callback_error, %{
+      callback_name: callback_name,
+      socket: Utils.truncate_data(socket),
+      kind: kind,
+      reason: Utils.truncate_data(reason)
+    })
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  # Phoenix Channel-specific ingestion functions
+
+  @doc """
+  Ingests a Phoenix channel join start event.
+  """
+  @spec ingest_phoenix_channel_join_start(RingBuffer.t(), term(), binary(), map(), term()) :: ingest_result()
+  def ingest_phoenix_channel_join_start(buffer, correlation_id, topic, payload, socket) do
+    event = Events.new_event(:phoenix_channel_join_start, %{
+      topic: topic,
+      payload: Utils.truncate_data(payload),
+      socket: Utils.truncate_data(socket)
+    }, [correlation_id: correlation_id])
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests a Phoenix channel join complete event.
+  """
+  @spec ingest_phoenix_channel_join_complete(RingBuffer.t(), term(), binary(), map(), term()) :: ingest_result()
+  def ingest_phoenix_channel_join_complete(buffer, correlation_id, topic, payload, result) do
+    event = Events.new_event(:phoenix_channel_join_complete, %{
+      topic: topic,
+      payload: Utils.truncate_data(payload),
+      result: Utils.truncate_data(result)
+    }, [correlation_id: correlation_id])
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests a Phoenix channel message start event.
+  """
+  @spec ingest_phoenix_channel_message_start(RingBuffer.t(), term(), binary(), map(), term()) :: ingest_result()
+  def ingest_phoenix_channel_message_start(buffer, correlation_id, event, payload, socket) do
+    event_struct = Events.new_event(:phoenix_channel_message_start, %{
+      event: event,
+      payload: Utils.truncate_data(payload),
+      socket: Utils.truncate_data(socket)
+    }, [correlation_id: correlation_id])
+    
+    RingBuffer.write(buffer, event_struct)
+  end
+
+  @doc """
+  Ingests a Phoenix channel message complete event.
+  """
+  @spec ingest_phoenix_channel_message_complete(RingBuffer.t(), term(), binary(), map(), term()) :: ingest_result()
+  def ingest_phoenix_channel_message_complete(buffer, correlation_id, event, payload, result) do
+    event_struct = Events.new_event(:phoenix_channel_message_complete, %{
+      event: event,
+      payload: Utils.truncate_data(payload),
+      result: Utils.truncate_data(result)
+    }, [correlation_id: correlation_id])
+    
+    RingBuffer.write(buffer, event_struct)
+  end
+
+  # Ecto-specific ingestion functions
+
+  @doc """
+  Ingests an Ecto query start event.
+  """
+  @spec ingest_ecto_query_start(RingBuffer.t(), term(), term(), list(), map(), module()) :: ingest_result()
+  def ingest_ecto_query_start(buffer, correlation_id, query, params, metadata, repo) do
+    event = Events.new_event(:ecto_query_start, %{
+      query: Utils.truncate_data(query),
+      params: Utils.truncate_data(params),
+      metadata: Utils.truncate_data(metadata),
+      repo: repo
+    }, [correlation_id: correlation_id])
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests an Ecto query complete event.
+  """
+  @spec ingest_ecto_query_complete(RingBuffer.t(), term(), term(), list(), term(), non_neg_integer()) :: ingest_result()
+  def ingest_ecto_query_complete(buffer, correlation_id, query, params, result, duration_us) do
+    event = Events.new_event(:ecto_query_complete, %{
+      query: Utils.truncate_data(query),
+      params: Utils.truncate_data(params),
+      result: Utils.truncate_data(result),
+      duration_us: duration_us
+    }, [correlation_id: correlation_id])
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  # GenServer-specific ingestion functions
+
+  @doc """
+  Ingests a GenServer callback start event.
+  """
+  @spec ingest_genserver_callback_start(RingBuffer.t(), atom(), pid(), term()) :: ingest_result()
+  def ingest_genserver_callback_start(buffer, callback_name, pid, capture_state) do
+    event = %Events.StateChange{
+      server_pid: pid,
+      callback: callback_name,
+      old_state: Utils.truncate_data(capture_state),
+      new_state: nil,
+      state_diff: nil,
+      trigger_message: nil,
+      trigger_call_id: nil
+    }
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests a GenServer callback success event.
+  """
+  @spec ingest_genserver_callback_success(RingBuffer.t(), atom(), pid(), term()) :: ingest_result()
+  def ingest_genserver_callback_success(buffer, callback_name, pid, result) do
+    event = %Events.StateChange{
+      server_pid: pid,
+      callback: callback_name,
+      old_state: nil,
+      new_state: Utils.truncate_data(result),
+      state_diff: nil,
+      trigger_message: nil,
+      trigger_call_id: nil
+    }
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests a GenServer callback error event.
+  """
+  @spec ingest_genserver_callback_error(RingBuffer.t(), atom(), pid(), atom(), term()) :: ingest_result()
+  def ingest_genserver_callback_error(buffer, callback_name, pid, kind, reason) do
+    event = %Events.ErrorEvent{
+      error_type: kind,
+      error_class: :genserver_callback,
+      error_message: Utils.truncate_data(reason),
+      stacktrace: nil,
+      context: %{callback: callback_name, pid: pid},
+      recovery_action: nil
+    }
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests a GenServer callback complete event.
+  """
+  @spec ingest_genserver_callback_complete(RingBuffer.t(), atom(), pid(), term()) :: ingest_result()
+  def ingest_genserver_callback_complete(buffer, callback_name, pid, capture_state) do
+    event = %Events.StateChange{
+      server_pid: pid,
+      callback: callback_name,
+      old_state: nil,
+      new_state: Utils.truncate_data(capture_state),
+      state_diff: nil,
+      trigger_message: nil,
+      trigger_call_id: nil
+    }
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  # Distributed system-specific ingestion functions
+
+  @doc """
+  Ingests a node event.
+  """
+  @spec ingest_node_event(RingBuffer.t(), atom(), atom(), map()) :: ingest_result()
+  def ingest_node_event(buffer, event_type, node_name, metadata) do
+    event = %Events.NodeEvent{
+      event_type: event_type,
+      node_name: node_name,
+      node_type: :visible,
+      connection_id: nil,
+      extra_info: Utils.truncate_data(metadata)
+    }
+    
+    RingBuffer.write(buffer, event)
+  end
+
+  @doc """
+  Ingests a partition detected event.
+  """
+  @spec ingest_partition_detected(RingBuffer.t(), list(atom()), map()) :: ingest_result()
+  def ingest_partition_detected(buffer, partitioned_nodes, metadata) do
+    event = Events.new_event(:partition_detected, %{
+      partitioned_nodes: partitioned_nodes,
+      metadata: Utils.truncate_data(metadata)
+    })
+    
+    RingBuffer.write(buffer, event)
   end
 end 

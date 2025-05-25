@@ -1,4 +1,4 @@
-defmodule ElixirScope.Compiler.MixTask do
+defmodule Mix.Tasks.Compile.ElixirScope do
   @moduledoc """
   Mix compiler that transforms Elixir ASTs to inject ElixirScope instrumentation.
 
@@ -34,6 +34,13 @@ defmodule ElixirScope.Compiler.MixTask do
         Mix.shell().error("ElixirScope instrumentation failed: #{inspect(reason)}")
         {:error, reason}
     end
+  end
+
+  @doc """
+  Transforms an AST directly with a given plan (used by tests).
+  """
+  def transform_ast(ast, plan) do
+    Transformer.transform_function(ast, plan)
   end
 
   defp transform_project(plan, config) do
@@ -100,4 +107,30 @@ defmodule ElixirScope.Compiler.MixTask do
     relative_path = Path.relative_to(input_path, File.cwd!())
     Path.join([config.build_path, "elixir_scope", relative_path])
   end
+
+  # Stub implementations for missing functions
+  # TODO: Implement these functions properly in future phases
+
+  defp parse_argv(_argv) do
+    # TODO: Implement proper argument parsing
+    %{
+      source_paths: ["lib"],
+      build_path: "_build/dev"
+    }
+  end
+
+  defp extract_module_name(ast) do
+    # TODO: Implement proper module name extraction from AST
+    case ast do
+      {:defmodule, _, [{:__aliases__, _, module_parts}, _]} ->
+        Module.concat(module_parts)
+      _ ->
+        :unknown
+    end
+  end
+end
+
+# Backwards compatibility alias for tests
+defmodule ElixirScope.Compiler.MixTask do
+  defdelegate transform_ast(ast, plan), to: Mix.Tasks.Compile.ElixirScope
 end

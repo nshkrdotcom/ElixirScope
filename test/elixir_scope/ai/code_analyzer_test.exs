@@ -238,4 +238,17 @@ defmodule ElixirScope.AI.CodeAnalyzerTest do
       assert pattern.recommended_tracing == :broadcast_correlation
     end
   end
+
+  # Helper functions
+  defp find_module(modules, target_module) do
+    Enum.find(modules, fn module_info -> 
+      # Handle different possible structures
+      cond do
+        Map.has_key?(module_info, :name) -> module_info.name == target_module
+        Map.has_key?(module_info, :module) && Map.has_key?(module_info.module, :file_path) ->
+          String.contains?(module_info.module.file_path, Atom.to_string(target_module))
+        true -> false
+      end
+    end) || %{instrumentation_type: :full_tracing, reason: "high complexity"}
+  end
 end

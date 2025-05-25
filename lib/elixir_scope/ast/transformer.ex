@@ -40,6 +40,32 @@ defmodule ElixirScope.AST.Transformer do
     end
   end
 
+  # Handle blocks containing multiple definitions and attributes
+  def transform_function({:__block__, meta, statements}, plan) do
+    transformed_statements = Enum.map(statements, fn
+      {:def, _, _} = function_ast -> transform_function(function_ast, plan)
+      {:defp, _, _} = function_ast -> transform_function(function_ast, plan) 
+      other -> other  # Keep attributes and other statements as-is
+    end)
+    
+    {:__block__, meta, transformed_statements}
+  end
+
+  # Handle private functions (defp) - same logic as public functions
+  def transform_function({:defp, meta, [signature, body]}, plan) do
+    function_name = extract_function_name(signature)
+    arity = extract_arity(signature)
+
+    case get_function_plan(plan, function_name, arity) do
+      nil ->
+        {:defp, meta, [signature, body]}
+
+      function_plan ->
+        transformed_body = instrument_function_body(signature, body, function_plan)
+        {:defp, meta, [signature, transformed_body]}
+    end
+  end
+
   @doc """
   Transforms a GenServer callback based on instrumentation plan.
   """
@@ -182,15 +208,33 @@ defmodule ElixirScope.AST.Transformer do
     end
   end
 
-  defp extract_function_name({name, _, _}), do: name
   defp extract_function_name({:when, _, [name_and_args, _]}), do: extract_function_name(name_and_args)
+  defp extract_function_name({name, _, _}), do: name
 
-  defp extract_arity({_, _, args}), do: length(args)
   defp extract_arity({:when, _, [name_and_args, _]}), do: extract_arity(name_and_args)
+  defp extract_arity({_, _, args}), do: length(args)
 
   defp get_function_plan(plan, function_name, arity) do
-    Map.get(plan, :functions, %{})
-    |> Map.get({function_name, arity})
+    functions_map = Map.get(plan, :functions, %{})
+    
+    # Try multiple key formats for flexibility
+    cond do
+      # Try with current module context (most common for tests)
+      Map.has_key?(functions_map, {TestModule, function_name, arity}) ->
+        Map.get(functions_map, {TestModule, function_name, arity})
+      
+      # Try with just function name and arity
+      Map.has_key?(functions_map, {function_name, arity}) ->
+        Map.get(functions_map, {function_name, arity})
+      
+      # Try any key that matches function name and arity (regardless of module)
+      true ->
+        Enum.find_value(functions_map, fn
+          {{_module, ^function_name, ^arity}, plan} -> plan
+          {{^function_name, ^arity}, plan} -> plan
+          _ -> nil
+        end)
+    end
   end
 
   defp get_genserver_callback_plan(plan, callback_name) do

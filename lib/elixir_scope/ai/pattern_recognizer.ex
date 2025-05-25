@@ -40,26 +40,52 @@ defmodule ElixirScope.AI.PatternRecognizer do
   # GenServer pattern recognition
 
   defp has_genserver_use?(ast) do
-    ast_contains_use?(ast, :GenServer)
+    ast_contains_use?(ast, GenServer) or 
+    ast_contains_use?(ast, :GenServer) or
+    ast_contains_genserver_use_pattern?(ast)
+  end
+
+  defp ast_contains_genserver_use_pattern?(ast) do
+    Macro.prewalk(ast, false, fn
+      {:use, _, [{:__aliases__, _, [:GenServer]}]}, _acc -> {true, true}
+      {:use, _, [GenServer]}, _acc -> {true, true}
+      node, acc -> {node, acc}
+    end) |> elem(1)
   end
 
   defp extract_callbacks(ast) do
-    genserver_callbacks = [:init, :handle_call, :handle_cast, :handle_info, :terminate, :code_change]
-    liveview_callbacks = [:mount, :handle_event, :handle_info, :handle_params]
-
-    defined_functions = extract_function_names(ast)
-
-    callbacks = Enum.filter(genserver_callbacks ++ liveview_callbacks, fn callback ->
-      callback in defined_functions
-    end)
-
-    callbacks
+    callbacks = Macro.prewalk(ast, [], fn
+      {:def, _, [{:handle_call, _, _}, _]}, acc -> {nil, [:handle_call | acc]}
+      {:def, _, [{:handle_cast, _, _}, _]}, acc -> {nil, [:handle_cast | acc]}
+      {:def, _, [{:handle_info, _, _}, _]}, acc -> {nil, [:handle_info | acc]}
+      {:def, _, [{:terminate, _, _}, _]}, acc -> {nil, [:terminate | acc]}
+      {:def, _, [{:code_change, _, _}, _]}, acc -> {nil, [:code_change | acc]}
+      {:def, _, [{:init, _, _}, _]}, acc -> {nil, [:init | acc]}
+      {:def, _, [{:mount, _, _}, _]}, acc -> {nil, [:mount | acc]}
+      {:def, _, [{:handle_params, _, _}, _]}, acc -> {nil, [:handle_params | acc]}
+      {:def, _, [{:handle_event, _, _}, _]}, acc -> {nil, [:handle_event | acc]}
+      {:def, _, [{:render, _, _}, _]}, acc -> {nil, [:render | acc]}
+      {:def, _, [{:start_link, _, _}, _]}, acc -> {nil, [:start_link | acc]}
+      node, acc -> {node, acc}
+    end) |> elem(1)
+    
+    Enum.reverse(callbacks)
   end
 
   # Supervisor pattern recognition
 
   defp has_supervisor_use?(ast) do
-    ast_contains_use?(ast, :Supervisor)
+    ast_contains_use?(ast, Supervisor) or
+    ast_contains_use?(ast, :Supervisor) or
+    ast_contains_supervisor_use_pattern?(ast)
+  end
+
+  defp ast_contains_supervisor_use_pattern?(ast) do
+    Macro.prewalk(ast, false, fn
+      {:use, _, [{:__aliases__, _, [:Supervisor]}]}, _acc -> {true, true}
+      {:use, _, [Supervisor]}, _acc -> {true, true}
+      node, acc -> {node, acc}
+    end) |> elem(1)
   end
 
   defp extract_supervisor_children(ast) do
@@ -84,7 +110,15 @@ defmodule ElixirScope.AI.PatternRecognizer do
 
   defp has_phoenix_controller_use?(ast) do
     ast_contains_use_with_atom?(ast, :controller) or
-    ast_contains_pattern?(ast, {:use, _, [{{:., _, [_, :controller]}, _, _}]})
+    ast_contains_controller_pattern?(ast)
+  end
+
+  defp ast_contains_controller_pattern?(ast) do
+    Macro.prewalk(ast, false, fn
+      {:use, _, [{{:., _, [_module, :controller]}, _, _args}]}, _acc ->
+        {true, true}
+      node, acc -> {node, acc}
+    end) |> elem(1)
   end
 
   defp has_phoenix_liveview_use?(ast) do
@@ -122,7 +156,15 @@ defmodule ElixirScope.AI.PatternRecognizer do
   end
 
   defp has_repo_calls?(ast) do
-    ast_contains_pattern?(ast, {{:., _, [{:__aliases__, _, [:Repo]}, _]}, _, _})
+    ast_contains_repo_pattern?(ast)
+  end
+
+  defp ast_contains_repo_pattern?(ast) do
+    Macro.prewalk(ast, false, fn
+      {{:., _, [{:__aliases__, _, [:Repo]}, _method]}, _, _args}, _acc ->
+        {true, true}
+      node, acc -> {node, acc}
+    end) |> elem(1)
   end
 
   defp has_ecto_queries?(ast) do
@@ -175,10 +217,20 @@ defmodule ElixirScope.AI.PatternRecognizer do
 
   defp ast_contains_use?(ast, module) do
     Macro.prewalk(ast, false, fn
-      {:use, _, [{:__aliases__, _, module_parts}]}, _acc when Module.concat(module_parts) == module ->
-        {true, true}
+      {:use, _, [{:__aliases__, _, module_parts}]}, _acc ->
+        if Module.concat(module_parts) == module do
+          {true, true}
+        else
+          {false, false}
+        end
       {:use, _, [^module]}, _acc when is_atom(module) ->
         {true, true}
+      {:use, _, [module_atom]}, _acc when is_atom(module_atom) ->
+        if module_atom == module do
+          {true, true}
+        else
+          {false, false}
+        end
       node, acc -> {node, acc}
     end) |> elem(1)
   end
@@ -201,8 +253,12 @@ defmodule ElixirScope.AI.PatternRecognizer do
   defp ast_contains_import?(ast, module) do
     Macro.prewalk(ast, false, fn
       {:import, _, [^module]}, _acc -> {true, true}
-      {:import, _, [{:__aliases__, _, module_parts}]}, _acc when Module.concat(module_parts) == module ->
-        {true, true}
+      {:import, _, [{:__aliases__, _, module_parts}]}, _acc ->
+        if Module.concat(module_parts) == module do
+          {true, true}
+        else
+          {false, false}
+        end
       node, acc -> {node, acc}
     end) |> elem(1)
   end
@@ -237,12 +293,24 @@ defmodule ElixirScope.AI.PatternRecognizer do
   defp extract_child_specs(specs) when is_list(specs) do
     Enum.map(specs, &extract_single_child_spec/1)
   end
+  defp extract_child_specs([_ | _] = specs) do
+    Enum.map(specs, &extract_single_child_spec/1)
+  end
   defp extract_child_specs(_), do: []
 
   defp extract_single_child_spec({:__aliases__, _, module_parts}) do
     Module.concat(module_parts)
   end
   defp extract_single_child_spec({:{}, _, [module_ref | _]}) do
+    extract_single_child_spec(module_ref)
+  end
+  defp extract_single_child_spec({{:., _, [{:__aliases__, _, module_parts}, _function]}, _, _args}) do
+    Module.concat(module_parts)
+  end
+  defp extract_single_child_spec({module_ref, _options}) when is_tuple(module_ref) do
+    extract_single_child_spec(module_ref)
+  end
+  defp extract_single_child_spec({module_ref, _options}) do
     extract_single_child_spec(module_ref)
   end
   defp extract_single_child_spec(_), do: :unknown
@@ -253,15 +321,27 @@ defmodule ElixirScope.AI.PatternRecognizer do
   defp extract_message_structure(atom) when is_atom(atom) do
     atom
   end
-  defp extract_message_structure(%{} = map) do
+  defp extract_message_structure(%{} = _map) do
     :map_message
   end
   defp extract_message_structure(_) do
     :unknown
   end
 
-  defp extract_topic_structure({:<<>>, _, [topic]}) when is_binary(topic) do
-    topic
+  defp extract_topic_structure({:<<>>, _, parts}) do
+    # Handle string interpolation like "user:#{user_id}"
+    case parts do
+      [topic] when is_binary(topic) -> 
+        topic
+      [prefix, {:"::", _, [{{:., _, [Kernel, :to_string]}, _, [_expr]}, {:binary, _, _}]}] when is_binary(prefix) ->
+        # Handle interpolation like "user:#{user_id}" -> "user:*"
+        prefix <> "*"
+      [prefix | _rest] when is_binary(prefix) ->
+        # Handle any other interpolation patterns
+        prefix <> "*"
+      _ -> 
+        :unknown
+    end
   end
   defp extract_topic_structure(topic) when is_binary(topic) do
     topic
