@@ -8,6 +8,7 @@ ExUnit.configure(exclude: [:skip])
 
 # Compile test support modules
 Code.compile_file("test/support/test_phoenix_app.ex")
+Code.compile_file("test/support/ai_test_helpers.ex")
 
 # Helper functions for tests
 defmodule ElixirScope.TestHelpers do
