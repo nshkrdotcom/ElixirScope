@@ -107,14 +107,19 @@ defmodule ElixirScope.AI.ComplexityAnalyzer do
     Macro.prewalk(ast, current_depth, fn
       # Control flow structures add nesting
       {:case, _, clauses}, max_so_far ->
-        clause_max = Enum.reduce(clauses, current_depth + 1, fn clause, acc ->
-          case clause do
-            {:->, _, [_patterns, body]} ->
-              max(acc, max_depth(body, current_depth + 1))
-            _ ->
-              acc
-          end
-        end)
+        clause_max = case clauses do
+          clauses_list when is_list(clauses_list) ->
+            Enum.reduce(clauses_list, current_depth + 1, fn clause, acc ->
+              case clause do
+                {:->, _, [_patterns, body]} ->
+                  max(acc, max_depth(body, current_depth + 1))
+                _ ->
+                  acc
+              end
+            end)
+          _ ->
+            current_depth + 1
+        end
         {nil, max(max_so_far, clause_max)}
       
       {:if, _, [_condition, keyword_list]}, max_so_far ->
@@ -127,26 +132,36 @@ defmodule ElixirScope.AI.ComplexityAnalyzer do
         {nil, max(max_so_far, max(do_max, else_max))}
       
       {:cond, _, clauses}, max_so_far ->
-        clause_max = Enum.reduce(clauses, current_depth + 1, fn clause, acc ->
-          case clause do
-            {:->, _, [_condition, body]} ->
-              max(acc, max_depth(body, current_depth + 1))
-            _ ->
-              acc
-          end
-        end)
+        clause_max = case clauses do
+          clauses_list when is_list(clauses_list) ->
+            Enum.reduce(clauses_list, current_depth + 1, fn clause, acc ->
+              case clause do
+                {:->, _, [_condition, body]} ->
+                  max(acc, max_depth(body, current_depth + 1))
+                _ ->
+                  acc
+              end
+            end)
+          _ ->
+            current_depth + 1
+        end
         {nil, max(max_so_far, clause_max)}
       
       # Anonymous functions also add nesting  
       {:fn, _, clauses}, max_so_far ->
-        clause_max = Enum.reduce(clauses, current_depth + 1, fn clause, acc ->
-          case clause do
-            {:->, _, [_patterns, body]} ->
-              max(acc, max_depth(body, current_depth + 1))
-            _ ->
-              acc
-          end
-        end)
+        clause_max = case clauses do
+          clauses_list when is_list(clauses_list) ->
+            Enum.reduce(clauses_list, current_depth + 1, fn clause, acc ->
+              case clause do
+                {:->, _, [_patterns, body]} ->
+                  max(acc, max_depth(body, current_depth + 1))
+                _ ->
+                  acc
+              end
+            end)
+          _ ->
+            current_depth + 1
+        end
         {nil, max(max_so_far, clause_max)}
       
       # Pipe operations add some complexity
@@ -157,9 +172,14 @@ defmodule ElixirScope.AI.ComplexityAnalyzer do
       
       # Function calls can add depth in some cases
       {{:., _, _}, _, args}, max_so_far when is_list(args) ->
-        args_max = Enum.reduce(args, current_depth, fn arg, acc ->
-          max(acc, max_depth(arg, current_depth))
-        end)
+        args_max = case args do
+          args_list when is_list(args_list) ->
+            Enum.reduce(args_list, current_depth, fn arg, acc ->
+              max(acc, max_depth(arg, current_depth))
+            end)
+          _ ->
+            current_depth
+        end
         {nil, max(max_so_far, args_max)}
       
       node, max_so_far -> 
@@ -171,7 +191,12 @@ defmodule ElixirScope.AI.ComplexityAnalyzer do
     Macro.prewalk(ast, 1, fn
       {:case, _, _}, complexity -> {true, complexity + 1}
       {:if, _, _}, complexity -> {true, complexity + 1}
-      {:cond, _, clauses}, complexity -> {true, complexity + length(clauses)}
+      {:cond, _, clauses}, complexity -> 
+        clause_count = case clauses do
+          clauses_list when is_list(clauses_list) -> length(clauses_list)
+          _ -> 1
+        end
+        {true, complexity + clause_count}
       {:with, _, _}, complexity -> {true, complexity + 1}
       {:try, _, _}, complexity -> {true, complexity + 1}
       {:and, _, _}, complexity -> {true, complexity + 1}
@@ -183,7 +208,12 @@ defmodule ElixirScope.AI.ComplexityAnalyzer do
   defp calculate_pattern_match_complexity(ast) do
     Macro.prewalk(ast, 0, fn
       {:->, _, [patterns, _]}, complexity ->
-        pattern_complexity = Enum.sum(Enum.map(patterns, &count_pattern_elements/1))
+        pattern_complexity = case patterns do
+          patterns_list when is_list(patterns_list) ->
+            Enum.sum(Enum.map(patterns_list, &count_pattern_elements/1))
+          single_pattern ->
+            count_pattern_elements(single_pattern)
+        end
         {true, complexity + pattern_complexity}
       {:=, _, [pattern, _]}, complexity ->
         pattern_complexity = count_pattern_elements(pattern)

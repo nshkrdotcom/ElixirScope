@@ -42,13 +42,20 @@ defmodule ElixirScope.AST.Transformer do
 
   # Handle blocks containing multiple definitions and attributes
   def transform_function({:__block__, meta, statements}, plan) do
-    transformed_statements = Enum.map(statements, fn
-      {:def, _, _} = function_ast -> transform_function(function_ast, plan)
-      {:defp, _, _} = function_ast -> transform_function(function_ast, plan) 
-      other -> other  # Keep attributes and other statements as-is
-    end)
-    
-    {:__block__, meta, transformed_statements}
+    case statements do
+      statements_list when is_list(statements_list) ->
+        transformed_statements = Enum.map(statements_list, fn
+          {:def, _, _} = function_ast -> transform_function(function_ast, plan)
+          {:defp, _, _} = function_ast -> transform_function(function_ast, plan) 
+          other -> other  # Keep attributes and other statements as-is
+        end)
+        
+        {:__block__, meta, transformed_statements}
+      
+      # If statements is not a list, return the block as-is
+      _ ->
+        {:__block__, meta, statements}
+    end
   end
 
   # Handle private functions (defp) - same logic as public functions
@@ -117,23 +124,38 @@ defmodule ElixirScope.AST.Transformer do
   # Private helper functions
 
   defp transform_module_body(body, plan) do
-    Enum.map(body, fn
-      {:def, _, _} = function_ast -> transform_function(function_ast, plan)
-      {:defp, _, _} = function_ast -> transform_function(function_ast, plan)
-      {:defmacro, _, _} = macro_ast -> macro_ast # Don't instrument macros directly
-      {:defmacrop, _, _} = macro_ast -> macro_ast # Don't instrument macros directly
-      {:defdelegate, _, _} = delegate_ast -> delegate_ast # Don't instrument delegates
-      {:defoverridable, _, _} = override_ast -> override_ast # Don't instrument overrides
-      {:defimpl, _, _} = impl_ast -> impl_ast # Don't instrument implementations
-      {:defprotocol, _, _} = protocol_ast -> protocol_ast # Don't instrument protocols
-      {:defrecord, _, _} = record_ast -> record_ast # Don't instrument records
-      {:defstruct, _, _} = struct_ast -> struct_ast # Don't instrument structs
-      {:defexception, _, _} = exception_ast -> exception_ast # Don't instrument exceptions
-      {:defcallback, _, _} = callback_ast -> callback_ast # Don't instrument callbacks
-      {:defmacrocallback, _, _} = macro_callback_ast -> macro_callback_ast # Don't instrument macro callbacks
-      {:defmodule, _, _} = nested_module_ast -> transform_module(nested_module_ast, plan) # Recurse into nested modules
+    case body do
+      # Handle when body is a list of statements
+      statements when is_list(statements) ->
+        Enum.map(statements, fn
+          {:def, _, _} = function_ast -> transform_function(function_ast, plan)
+          {:defp, _, _} = function_ast -> transform_function(function_ast, plan)
+          {:defmacro, _, _} = macro_ast -> macro_ast # Don't instrument macros directly
+          {:defmacrop, _, _} = macro_ast -> macro_ast # Don't instrument macros directly
+          {:defdelegate, _, _} = delegate_ast -> delegate_ast # Don't instrument delegates
+          {:defoverridable, _, _} = override_ast -> override_ast # Don't instrument overrides
+          {:defimpl, _, _} = impl_ast -> impl_ast # Don't instrument implementations
+          {:defprotocol, _, _} = protocol_ast -> protocol_ast # Don't instrument protocols
+          {:defrecord, _, _} = record_ast -> record_ast # Don't instrument records
+          {:defstruct, _, _} = struct_ast -> struct_ast # Don't instrument structs
+          {:defexception, _, _} = exception_ast -> exception_ast # Don't instrument exceptions
+          {:defcallback, _, _} = callback_ast -> callback_ast # Don't instrument callbacks
+          {:defmacrocallback, _, _} = macro_callback_ast -> macro_callback_ast # Don't instrument macro callbacks
+          {:defmodule, _, _} = nested_module_ast -> transform_module(nested_module_ast, plan) # Recurse into nested modules
+          other -> other
+        end)
+      
+      # Handle when body is a single statement (not a list)
+      {:def, _, _} = function_ast -> 
+        transform_function(function_ast, plan)
+      {:defp, _, _} = function_ast -> 
+        transform_function(function_ast, plan)
+      {:defmodule, _, _} = nested_module_ast -> 
+        transform_module(nested_module_ast, plan)
+      
+      # For any other single statement, return as-is
       other -> other
-    end)
+    end
   end
 
   defp instrument_function_body(signature, body, function_plan) do
@@ -212,7 +234,9 @@ defmodule ElixirScope.AST.Transformer do
   defp extract_function_name({name, _, _}), do: name
 
   defp extract_arity({:when, _, [name_and_args, _]}), do: extract_arity(name_and_args)
-  defp extract_arity({_, _, args}), do: length(args)
+  defp extract_arity({_, _, args}) when is_list(args), do: length(args)
+  defp extract_arity({_, _, nil}), do: 0
+  defp extract_arity(_), do: 0
 
   defp get_function_plan(plan, function_name, arity) do
     functions_map = Map.get(plan, :functions, %{})
