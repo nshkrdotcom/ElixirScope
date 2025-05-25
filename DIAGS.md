@@ -418,35 +418,35 @@ graph TB
 
 ```mermaid
 flowchart TB
-    subgraph "1. Code Analysis"
+    subgraph "1 Code Analysis"
         SRC[Source Code] --> AI[AI Analyzer]
         AI --> PLAN[Instrumentation Plan]
     end
     
-    subgraph "2. Compile Time"
+    subgraph "2 Compile Time"
         PLAN --> AST[AST Transformer]
         AST --> INST[Instrumented Code]
     end
     
-    subgraph "3. Runtime Capture"
+    subgraph "3 Runtime Capture"
         INST --> RT[Runtime Call]
         RT --> ING[Ingestor]
         ING --> RB[Ring Buffer]
     end
     
-    subgraph "4. Async Processing"
+    subgraph "4 Async Processing"
         RB --> AW[Async Writers]
         AW --> EC[Event Correlator]
         EC --> ENR[Enriched Events]
     end
     
-    subgraph "5. Storage"
+    subgraph "5 Storage"
         ENR --> HOT[Hot Storage<br/>ETS]
         HOT --> WARM[Warm Storage<br/>Disk]
         WARM --> COLD[Cold Storage<br/>Archive]
     end
     
-    subgraph "6. Query & Analysis"
+    subgraph "6 Query & Analysis"
         HOT --> QRY[Query API]
         QRY --> VIZ[Visualization]
         QRY --> AI2[AI Analysis]
