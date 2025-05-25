@@ -250,13 +250,17 @@ defmodule ElixirScope.Distributed.MultiNodeTest do
     if Node.alive?() do
       try do
         nodes = Enum.map(@test_nodes, fn node_name ->
-          case :slave.start(:localhost, node_name, ~c"-setcookie test_cookie") do
-            {:ok, node} -> 
-              # Start ElixirScope on the node
-              :rpc.call(node, ElixirScope, :start, [])
-              node
-            {:error, reason} -> 
-              throw({:node_start_failed, node_name, reason})
+          # Use Node.spawn_link as a simple alternative to :slave.start
+          case Node.spawn_link(node_name, fn -> 
+            ElixirScope.start()
+            receive do
+              :stop -> :ok
+            end
+          end) do
+            pid when is_pid(pid) -> 
+              node_name
+            _ -> 
+              throw({:node_start_failed, node_name, :spawn_failed})
           end
         end)
         

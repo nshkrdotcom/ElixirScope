@@ -172,24 +172,24 @@ defmodule ElixirScope.AI.CodeAnalyzerTest do
       assert project_analysis.total_modules > 0
       assert project_analysis.genserver_modules > 0
       assert project_analysis.phoenix_modules > 0
-      assert project_analysis.supervision_tree != nil
+      assert is_list(project_analysis.supervision_tree)
 
       # Verify instrumentation recommendations
-      assert project_analysis.recommended_plan != nil
+      assert is_map(project_analysis.recommended_plan)
       assert project_analysis.estimated_overhead < 0.05  # <5%
 
       # Verify dependency analysis
-      assert project_analysis.external_dependencies != nil
-      assert project_analysis.internal_message_flows != nil
+      assert is_list(project_analysis.external_dependencies)
+      assert is_map(project_analysis.internal_message_flows)
     end
 
     test "generates prioritized instrumentation plan" do
       plan = CodeAnalyzer.generate_instrumentation_plan(@test_project_path)
 
       # Verify plan structure
-      assert plan.priority_modules != nil
-      assert plan.instrumentation_strategies != nil
-      assert plan.estimated_impact != nil
+      assert is_list(plan.priority_modules)
+      assert is_map(plan.instrumentation_strategies)
+      assert is_map(plan.estimated_impact)
 
       # Verify priorities are ordered correctly
       assert hd(plan.priority_modules).priority == :high

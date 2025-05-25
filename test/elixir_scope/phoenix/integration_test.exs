@@ -5,8 +5,6 @@ if Code.ensure_loaded?(Phoenix.ConnTest) do
 
     alias ElixirScope.Phoenix.Integration
 
-    @endpoint TestPhoenixApp.Endpoint
-
     setup do
       # Enable Phoenix instrumentation
       Integration.enable()

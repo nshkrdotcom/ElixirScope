@@ -1,7 +1,5 @@
 defmodule ElixirScope.Integration.ProductionPhoenixTest do
   use ExUnit.Case, async: false
-
-  alias ElixirScope.Storage.DataAccess
   
   # Skip production Phoenix tests since the app doesn't exist
   @moduletag :skip
@@ -61,9 +59,4 @@ defmodule ElixirScope.Integration.ProductionPhoenixTest do
       assert true, "Production Phoenix tests skipped - no production app available"
     end
   end
-
-  # Only keep the essential helper functions that might be needed for future implementation
-  defp filter_events(_events, _type), do: []
-  defp filter_events_before(_events, _timestamp), do: []
-  defp events_are_valid?(_events), do: true
 end

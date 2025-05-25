@@ -41,8 +41,8 @@ defmodule ElixirScope.Compiler.MixTaskTest do
     test "preserves original module behavior" do
       # Test that original functionality is preserved
       if Code.ensure_loaded?(TestModule) do
-        assert TestModule.add(2, 3) == 5
-        assert TestModule.multiply(4, 5) == 20
+        assert apply(TestModule, :add, [2, 3]) == 5
+        assert apply(TestModule, :multiply, [4, 5]) == 20
       else
         # If TestModule isn't available, just pass the test
         assert true, "TestModule not available in test environment"

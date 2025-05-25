@@ -56,9 +56,8 @@ end
 
 # Mock Endpoint
 defmodule TestPhoenixApp.Endpoint do
-  use Phoenix.Endpoint, otp_app: :elixir_scope
-  
-  def start_link(_opts) do
+  # Don't use Phoenix.Endpoint to avoid conflicts - just create a simple mock
+  def start_link(_opts \\ []) do
     # Mock endpoint
     Agent.start_link(fn -> %{} end, name: __MODULE__)
   end
@@ -67,10 +66,10 @@ defmodule TestPhoenixApp.Endpoint do
     {:ok, config}
   end
 
-  def child_spec(_) do
+  def child_spec(opts) do
     %{
       id: __MODULE__,
-      start: {__MODULE__, :start_link, [[]]},
+      start: {__MODULE__, :start_link, [opts]},
       type: :worker
     }
   end
@@ -123,11 +122,6 @@ defmodule TestPhoenixApp.UserController do
   def error_test(_conn, _params) do
     # Intentionally cause error for testing
     raise "Test error for ElixirScope tracing"
-  end
-  
-  defp render(conn, _template, assigns) do
-    user = assigns[:user]
-    send_resp(conn, 200, "User: #{user.name}")
   end
 end
 
