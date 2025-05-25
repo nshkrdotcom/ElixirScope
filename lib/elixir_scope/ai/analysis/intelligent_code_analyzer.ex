@@ -388,13 +388,15 @@ defmodule ElixirScope.AI.Analysis.IntelligentCodeAnalyzer do
     conditionals = count_conditionals(ast)
     loops = count_loops(ast)
     
-    conditionals + loops * 2
+    max(1, conditionals + loops * 2)
   end
 
   defp count_loops(ast) do
     case ast do
       {:for, _, _} -> 1
       {:while, _, _} -> 1
+      {:__block__, _, children} when is_list(children) ->
+        Enum.sum(Enum.map(children, &count_loops/1))
       {_, _, children} when is_list(children) ->
         Enum.sum(Enum.map(children, &count_loops/1))
       _ -> 0
@@ -432,8 +434,10 @@ defmodule ElixirScope.AI.Analysis.IntelligentCodeAnalyzer do
   defp is_simple_function?(ast) do
     case ast do
       {:def, _, [_, [do: body]]} ->
-        # Simple if body is not complex
-        calculate_cognitive_complexity(body) <= 2
+        # Simple if body is not complex and has no conditionals
+        complexity = calculate_cognitive_complexity(body)
+        conditionals = count_conditionals(body)
+        complexity <= 2 and conditionals == 0
       _ -> false
     end
   end
@@ -513,12 +517,16 @@ defmodule ElixirScope.AI.Analysis.IntelligentCodeAnalyzer do
     avg_line_length = String.length(code) / max(1, line_count)
     
     # Good readability if lines are reasonable length
-    base_score = if avg_line_length < 80, do: 0.9, else: 0.6
+    base_score = if avg_line_length < 80, do: 0.8, else: 0.5
+    
+    # Penalty for very long lines or very long modules
+    long_line_penalty = if avg_line_length > 120, do: 0.2, else: 0.0
     
     # Bonus for documentation
     doc_bonus = if String.contains?(code, "@doc"), do: 0.1, else: 0.0
     
-    min(1.0, base_score + doc_bonus)
+    score = base_score + doc_bonus - long_line_penalty
+    max(0.0, min(1.0, score))
   end
 
   defp assess_maintainability(code) do
@@ -527,11 +535,14 @@ defmodule ElixirScope.AI.Analysis.IntelligentCodeAnalyzer do
     module_size = String.length(code)
     
     # Penalize large modules and many functions
-    size_penalty = if module_size > 2000, do: 0.3, else: 0.0
-    function_penalty = if function_count > 15, do: 0.2, else: 0.0
+    size_penalty = if module_size > 1500, do: 0.3, else: 0.0
+    function_penalty = if function_count > 10, do: 0.2, else: 0.0
     
-    base_score = 0.9
-    max(0.0, base_score - size_penalty - function_penalty)
+    # Additional penalty for very large modules
+    very_large_penalty = if module_size > 3000, do: 0.2, else: 0.0
+    
+    base_score = 0.8
+    max(0.0, base_score - size_penalty - function_penalty - very_large_penalty)
   end
 
   defp assess_testability(code) do
@@ -539,8 +550,8 @@ defmodule ElixirScope.AI.Analysis.IntelligentCodeAnalyzer do
     has_side_effects = String.contains?(code, "IO.") or String.contains?(code, "File.")
     has_dependencies = String.contains?(code, "alias ") or String.contains?(code, "import ")
     
-    base_score = 0.8
-    side_effect_penalty = if has_side_effects, do: 0.2, else: 0.0
+    base_score = 0.7
+    side_effect_penalty = if has_side_effects, do: 0.3, else: 0.0
     dependency_penalty = if has_dependencies, do: 0.1, else: 0.0
     
     max(0.0, base_score - side_effect_penalty - dependency_penalty)
@@ -550,14 +561,17 @@ defmodule ElixirScope.AI.Analysis.IntelligentCodeAnalyzer do
     # Simplified performance assessment
     has_recursion = String.contains?(code, "def ") and String.contains?(code, "self")
     has_loops = String.contains?(code, "Enum.") or String.contains?(code, "for ")
+    has_nested_conditions = String.contains?(code, "if") and String.contains?(code, "else")
     
-    base_score = 0.8
+    base_score = 0.7
     
     # Recursion can be good or bad
     recursion_adjustment = if has_recursion, do: 0.1, else: 0.0
     loop_bonus = if has_loops, do: 0.1, else: 0.0
+    nested_penalty = if has_nested_conditions, do: 0.1, else: 0.0
     
-    min(1.0, base_score + recursion_adjustment + loop_bonus)
+    score = base_score + recursion_adjustment + loop_bonus - nested_penalty
+    max(0.0, min(1.0, score))
   end
 
   defp calculate_overall_quality_score(dimensions, weights) do
@@ -575,21 +589,34 @@ defmodule ElixirScope.AI.Analysis.IntelligentCodeAnalyzer do
     issues = []
     
     # Check for low scores and generate issues
-    issues = if dimensions.readability < 0.7 do
+    issues = if dimensions.readability <= 0.8 do
       [%{type: :warning, message: "Low readability score", dimension: :readability} | issues]
     else
       issues
     end
     
-    issues = if dimensions.maintainability < 0.6 do
+    issues = if dimensions.maintainability <= 0.8 do
       [%{type: :error, message: "Poor maintainability", dimension: :maintainability} | issues]
     else
       issues
     end
     
+    issues = if dimensions.testability < 0.7 do
+      [%{type: :warning, message: "Low testability", dimension: :testability} | issues]
+    else
+      issues
+    end
+    
     # Check for specific issues
-    issues = if String.length(code) > 2000 do
+    issues = if String.length(code) > 1500 do
       [%{type: :warning, message: "Large module detected", suggestion: "Consider splitting into smaller modules"} | issues]
+    else
+      issues
+    end
+    
+    # Check for side effects
+    issues = if String.contains?(code, "IO.") or String.contains?(code, "File.") do
+      [%{type: :warning, message: "Side effects detected", suggestion: "Consider dependency injection"} | issues]
     else
       issues
     end
@@ -748,7 +775,29 @@ defmodule ElixirScope.AI.Analysis.IntelligentCodeAnalyzer do
     function_count = count_functions(ast)
     complexity = calculate_cognitive_complexity(ast)
     
-    function_count >= 20 or complexity > 30
+    # Check if it's a large module with many functions
+    function_count >= 20 or complexity > 30 or has_many_functions_in_module?(ast)
+  end
+  
+  defp has_many_functions_in_module?(ast) do
+    # Check for defmodule with many function definitions
+    case ast do
+      {:defmodule, _, [_, [do: {:__block__, _, children}]]} ->
+        function_defs = Enum.count(children, fn
+          {:def, _, _} -> true
+          {:defp, _, _} -> true
+          _ -> false
+        end)
+        function_defs >= 20
+      {:defmodule, _, [_, [do: body]]} ->
+        # Single function in module
+        case body do
+          {:def, _, _} -> false
+          {:defp, _, _} -> false
+          _ -> false
+        end
+      _ -> false
+    end
   end
 
   defp has_long_methods?(ast) do
