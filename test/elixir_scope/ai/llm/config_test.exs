@@ -25,7 +25,15 @@ defmodule ElixirScope.AI.LLM.ConfigTest do
     Application.delete_env(:elixir_scope, :llm_timeout)
     
     on_exit(fn ->
-      # Restore original env vars
+      # Always clear env vars first to prevent leakage
+      System.delete_env("GEMINI_API_KEY")
+      System.delete_env("LLM_PROVIDER")
+      System.delete_env("GEMINI_BASE_URL")
+      System.delete_env("GEMINI_MODEL")
+      System.delete_env("GEMINI_DEFAULT_MODEL")
+      System.delete_env("LLM_TIMEOUT")
+      
+      # Then restore original env vars if they existed
       if original_gemini_key, do: System.put_env("GEMINI_API_KEY", original_gemini_key)
       if original_provider, do: System.put_env("LLM_PROVIDER", original_provider)
       if original_base_url, do: System.put_env("GEMINI_BASE_URL", original_base_url)

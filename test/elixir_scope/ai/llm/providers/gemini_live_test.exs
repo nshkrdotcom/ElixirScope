@@ -36,6 +36,10 @@ defmodule ElixirScope.AI.LLM.Providers.GeminiLiveTest do
         {:skip, "GEMINI_API_KEY appears to be invalid (too short)"}
       
       _api_key ->
+        # Ensure we're using the real Gemini API URL, not any test overrides
+        System.delete_env("GEMINI_BASE_URL")
+        System.delete_env("GEMINI_MODEL")
+        System.delete_env("GEMINI_DEFAULT_MODEL")
         :ok
     end
   end
