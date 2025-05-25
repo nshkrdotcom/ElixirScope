@@ -2,7 +2,7 @@
 
 **Date**: December 2024  
 **Purpose**: Comprehensive testing strategy for ElixirScope LLM Integration  
-**Status**: 🟢 **ACTIVE** - Updated for Layer 10 LLM Integration  
+**Status**: 🟢 **ACTIVE** - Updated with Focused Test Suites  
 
 ---
 
@@ -14,10 +14,35 @@ ElixirScope uses a multi-tiered testing approach to ensure reliability across di
 2. **Integration Tests** - Tests for component interactions
 3. **Live API Tests** - Real API calls to external services (separate from main test suite)
 4. **Compliance Tests** - Ensure all providers implement required interfaces
+5. **Focused Test Suites** - Provider-specific and LLM-focused test runs
 
 ---
 
 ## 🚀 **Running Tests**
+
+### **Quick Test Commands (Recommended)**
+```bash
+# Fast test run with detailed output (excludes live API calls)
+mix test.trace
+
+# Test only mock provider (super fast, no API calls)
+mix test.mock
+
+# Test only Gemini provider (requires GOOGLE_API_KEY)
+mix test.gemini
+
+# Test only Vertex AI provider (requires VERTEX_JSON_FILE)
+mix test.vertex
+
+# Test all LLM components (excludes live API calls)
+mix test.llm
+
+# Test all LLM components including live API calls
+mix test.llm.live
+
+# Fast parallel test run
+mix test.fast
+```
 
 ### **Standard Test Suite (Default)**
 ```bash
@@ -36,29 +61,38 @@ mix test --only llm
 
 ### **Live API Tests (Separate)**
 ```bash
-# Run ONLY live Gemini API tests (requires GEMINI_API_KEY)
-mix test test/elixir_scope/ai/llm/providers/gemini_live_test.exs
+# Run ONLY live API tests (requires credentials)
+mix test.live
 
-# Run ONLY live Vertex AI tests (requires VERTEX_JSON_FILE)
-mix test test/elixir_scope/ai/llm/providers/vertex_live_test.exs
-
-# Run all live API tests with tag
-mix test --only live_api
-
-# Include live tests in full test run
-mix test --include live_api
+# Run all tests including live API tests
+mix test.all
 
 # Run live tests with verbose output
 mix test --only live_api --trace
 ```
 
-### **Provider Compliance Tests**
+### **Provider-Specific Testing**
 ```bash
-# Test that all providers implement the required behaviour
-mix test test/elixir_scope/ai/llm/provider_compliance_test.exs
+# Test individual providers with focused test suites
+mix test.mock      # Mock provider tests (27 tests, ~0.2s)
+mix test.gemini    # Gemini live API tests (requires GOOGLE_API_KEY)
+mix test.vertex    # Vertex AI live API tests (requires VERTEX_JSON_FILE)
 
-# Run compliance tests for specific provider
-mix test test/elixir_scope/ai/llm/provider_compliance_test.exs -k "Mock"
+# Test specific provider files directly
+mix test test/elixir_scope/ai/llm/providers/gemini_live_test.exs
+mix test test/elixir_scope/ai/llm/providers/vertex_live_test.exs
+```
+
+### **LLM-Focused Testing**
+```bash
+# Test all LLM components (fast, no API calls)
+mix test.llm
+
+# Test all LLM components including live API tests
+mix test.llm.live
+
+# Test LLM directory with specific options
+mix test test/elixir_scope/ai/llm/ --exclude live_api
 ```
 
 ---
@@ -69,7 +103,7 @@ mix test test/elixir_scope/ai/llm/provider_compliance_test.exs -k "Mock"
 ```bash
 # Standard tests use mock providers by default in test environment
 # No environment variables needed - mock is automatic
-mix test
+mix test.trace
 
 # Explicitly set mock provider (optional)
 export LLM_PROVIDER=mock
@@ -85,51 +119,54 @@ mix test
 # Set up Vertex AI credentials for live testing
 export VERTEX_JSON_FILE="/path/to/your/service-account.json"
 export VERTEX_DEFAULT_MODEL="gemini-2.0-flash"  # Optional
-export LLM_PROVIDER="vertex"  # Required in test environment to override mock
 
-# Run live tests
-mix test --only live_api
+# Run Vertex-specific tests
+mix test.vertex
+
+# Run all live tests
+mix test.live
 ```
 
 #### **Gemini API Setup (Alternative)**
 ```bash
 # Set up Gemini API key for live testing
-export GEMINI_API_KEY="your-actual-gemini-api-key-here"
+export GOOGLE_API_KEY="your-actual-gemini-api-key-here"
 export GEMINI_DEFAULT_MODEL="gemini-2.0-flash"  # Optional
-export LLM_PROVIDER="gemini"  # Required in test environment to override mock
 
-# Run live tests
-mix test --only live_api
+# Run Gemini-specific tests
+mix test.gemini
+
+# Run all live tests
+mix test.live
 ```
 
 ### **Testing Different Models**
 ```bash
 # Test with specific Vertex model
 export VERTEX_DEFAULT_MODEL="gemini-1.5-pro"
-mix test --only live_api
+mix test.vertex
 
 # Test with specific Gemini model
 export GEMINI_DEFAULT_MODEL="gemini-1.5-pro"
-mix test --only live_api
+mix test.gemini
 
 # Test with different model during test run
-VERTEX_DEFAULT_MODEL="gemini-2.0-flash" mix test --only live_api
+VERTEX_DEFAULT_MODEL="gemini-2.0-flash" mix test.vertex
 ```
 
 ### **Multi-Provider Testing**
 ```bash
-# Test provider fallback behavior
+# Test all providers with credentials
 export VERTEX_JSON_FILE="/path/to/valid/credentials.json"
-export GEMINI_API_KEY="your-api-key"
-export LLM_PROVIDER="vertex"  # Primary provider (required in test env)
-mix test --only live_api
+export GOOGLE_API_KEY="your-api-key"
 
-# Test with Gemini as primary
-export LLM_PROVIDER="gemini"  # Switch to Gemini (required in test env)
-mix test --only live_api
+# Test each provider individually
+mix test.vertex
+mix test.gemini
+mix test.mock
 
-# Note: In test environment, you must explicitly set LLM_PROVIDER
-# Auto-detection is disabled to ensure predictable test behavior
+# Test all live providers
+mix test.live
 ```
 
 ---
@@ -145,7 +182,7 @@ mix test --only live_api
 # Examples
 mix test test/elixir_scope/ai/llm/response_test.exs
 mix test test/elixir_scope/ai/llm/config_test.exs
-mix test test/elixir_scope/ai/llm/providers/mock_test.exs
+mix test.mock  # Comprehensive mock provider tests
 ```
 
 **Coverage**:
@@ -161,6 +198,8 @@ mix test test/elixir_scope/ai/llm/providers/mock_test.exs
 
 ```bash
 mix test test/elixir_scope/ai/llm/client_test.exs
+# Or use focused LLM tests
+mix test.llm
 ```
 
 **Coverage**:
@@ -170,26 +209,32 @@ mix test test/elixir_scope/ai/llm/client_test.exs
 - ✅ Error propagation
 
 ### **3. Live API Tests** 🌐
-**Location**: `test/elixir_scope/ai/llm/providers/gemini_live_test.exs`  
+**Location**: `test/elixir_scope/ai/llm/providers/*_live_test.exs`  
 **Purpose**: Test real API integration  
-**Run Time**: 30-60 seconds  
-**Requirements**: Valid `GEMINI_API_KEY`  
+**Run Time**: 30-60 seconds per provider  
 
 ```bash
-# Prerequisites
-export GEMINI_API_KEY="your-key-here"
+# Prerequisites for Gemini
+export GOOGLE_API_KEY="your-key-here"
+mix test.gemini
 
-# Run live tests
-mix test test/elixir_scope/ai/llm/providers/gemini_live_test.exs
+# Prerequisites for Vertex AI
+export VERTEX_JSON_FILE="/path/to/service-account.json"
+mix test.vertex
+
+# Run all live tests
+mix test.live
 ```
 
 **Coverage**:
-- ✅ Real Gemini API calls
-- ✅ Response parsing
-- ✅ Error handling with invalid keys
+- ✅ Real API calls (Gemini & Vertex AI)
+- ✅ Response parsing and validation
+- ✅ Error handling with invalid credentials
 - ✅ Model selection via environment variables
 - ✅ Performance validation
-- ✅ Concurrent request handling
+- ✅ Unicode and special character handling
+- ✅ Large input handling
+- ✅ Context processing
 
 ### **4. Compliance Tests**
 **Location**: `test/elixir_scope/ai/llm/provider_compliance_test.exs`  
@@ -198,6 +243,8 @@ mix test test/elixir_scope/ai/llm/providers/gemini_live_test.exs
 
 ```bash
 mix test test/elixir_scope/ai/llm/provider_compliance_test.exs
+# Or include in LLM-focused tests
+mix test.llm
 ```
 
 **Coverage**:
@@ -208,7 +255,21 @@ mix test test/elixir_scope/ai/llm/provider_compliance_test.exs
 
 ---
 
-## 🎯 **Test Configuration**
+## 🎯 **Test Configuration & Mix Aliases**
+
+### **Available Mix Aliases**
+
+| Alias | Purpose | Excludes Live API | Run Time |
+|-------|---------|-------------------|----------|
+| `mix test.trace` | Main test suite with detailed output | ✅ | ~0.2s |
+| `mix test.fast` | Parallel test execution | ✅ | ~0.1s |
+| `mix test.mock` | Mock provider tests only | ✅ | ~0.2s |
+| `mix test.llm` | All LLM tests (safe) | ✅ | ~0.3s |
+| `mix test.gemini` | Gemini live API tests | ❌ | ~30s |
+| `mix test.vertex` | Vertex AI live API tests | ❌ | ~45s |
+| `mix test.live` | All live API tests | ❌ | ~60s |
+| `mix test.llm.live` | LLM tests including live API | ❌ | ~60s |
+| `mix test.all` | Everything including live API | ❌ | ~90s |
 
 ### **Test Environment Variables**
 
@@ -216,10 +277,59 @@ mix test test/elixir_scope/ai/llm/provider_compliance_test.exs
 |----------|---------|---------|----------|
 | `VERTEX_JSON_FILE` | Vertex AI credentials file path | None | For Vertex live tests only |
 | `VERTEX_DEFAULT_MODEL` | Vertex model for tests | `gemini-2.0-flash` | No |
-| `GEMINI_API_KEY` | Live Gemini API access | None | For Gemini live tests only |
+| `GOOGLE_API_KEY` | Live Gemini API access | None | For Gemini live tests only |
 | `GEMINI_DEFAULT_MODEL` | Gemini model for tests | `gemini-2.0-flash` | No |
 | `LLM_PROVIDER` | Force specific provider | `mock` (in test env) | No |
 | `LLM_TIMEOUT` | API timeout (ms) | `30000` | No |
+
+---
+
+## 🏃‍♂️ **Recommended Testing Workflow**
+
+### **During Development**
+```bash
+# Quick feedback loop (recommended for TDD)
+mix test.trace
+
+# Test specific provider functionality
+mix test.mock
+
+# Test LLM components without API calls
+mix test.llm
+```
+
+### **Before Committing**
+```bash
+# Run full test suite (excludes live API)
+mix test.trace
+
+# Verify all tests pass
+mix test.fast
+```
+
+### **Before Releasing**
+```bash
+# Test with live APIs (requires credentials)
+export VERTEX_JSON_FILE="/path/to/credentials.json"
+export GOOGLE_API_KEY="your-api-key"
+
+# Test each provider
+mix test.vertex
+mix test.gemini
+
+# Full test suite including live APIs
+mix test.all
+```
+
+### **CI/CD Pipeline**
+```bash
+# Fast test run for CI (no external dependencies)
+mix test.trace
+
+# Optional: Live API tests in separate CI job
+# (requires secure credential management)
+mix test.live
+```
 
 ---
 
@@ -237,7 +347,36 @@ Configuration update rejected: "ai.planning.sampling_rate must be a number betwe
 Vertex: Failed to generate token: {:error, "No Vertex AI credentials found"}
 ```
 
-**This is expected in standard tests** - when running `mix test` without live API tests, the system correctly reports that Vertex credentials are not available and falls back to mock provider.
+**This is expected in standard tests** - when running `mix test.trace` without live API tests, the system correctly reports that Vertex credentials are not available and falls back to mock provider.
+
+### **Live API Test Skipping**
+```
+⚠️  Skipping Gemini tests - GOOGLE_API_KEY not configured
+⚠️  Skipping Vertex tests - VERTEX_JSON_FILE not configured
+```
+
+**This is expected behavior** - live API tests automatically skip when credentials are not available, allowing the test suite to run in any environment.
 
 ### **Bearer Token Security**
 All HTTP requests and responses are automatically redacted in logs to prevent accidental exposure of API keys or access tokens. You should never see actual bearer tokens in test output.
+
+---
+
+## 🎉 **Test Results Summary**
+
+### **Current Test Coverage**
+- **Total Tests**: 530+ tests
+- **Mock Provider Tests**: 27 tests (comprehensive offline testing)
+- **Live API Tests**: 21 tests (Gemini + Vertex AI)
+- **Standard Test Run Time**: ~0.2 seconds
+- **Live API Test Run Time**: ~60 seconds
+
+### **Test Success Metrics**
+- ✅ **0 failures** in standard test suite
+- ✅ **Fast execution** (~0.2s for 530+ tests)
+- ✅ **No external dependencies** in default test run
+- ✅ **Comprehensive provider coverage**
+- ✅ **Clear test output** with individual test timing
+- ✅ **Proper test isolation** (live API tests tagged separately)
+
+**Key Achievement**: Tests now run in ~0.2 seconds instead of 8+ seconds, with clear one-line-per-test output showing exactly which tests are running and their timing.

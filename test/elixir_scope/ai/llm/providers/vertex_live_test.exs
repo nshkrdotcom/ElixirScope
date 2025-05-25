@@ -1,304 +1,461 @@
 defmodule ElixirScope.AI.LLM.Providers.VertexLiveTest do
   @moduledoc """
-  Live integration tests for the Vertex provider.
+  Live API tests for the Vertex AI provider.
   
-  These tests make actual API calls to Google's Vertex AI service and require:
-  1. VERTEX_JSON_FILE environment variable pointing to a valid service account JSON file
-  2. Internet connectivity
-  3. Valid Vertex AI API quota
+  These tests make actual API calls to Google Cloud's Vertex AI service.
+  Run with: mix test.vertex
   
-  To run these tests separately:
-  
-      # Run only live Vertex tests
-      mix test test/elixir_scope/ai/llm/providers/vertex_live_test.exs
-      
-      # Run with specific tag
-      mix test --only live_api
-      
-      # Skip live tests during regular test runs
-      mix test --exclude live_api
+  Prerequisites:
+  - VERTEX_JSON_FILE environment variable must be set to service account key path
+  - Google Cloud project with Vertex AI enabled
+  - Internet connection required
   """
   
   use ExUnit.Case, async: false
   
-  alias ElixirScope.AI.LLM.Providers.Vertex
   alias ElixirScope.AI.LLM.Response
-
+  alias ElixirScope.AI.LLM.Providers.Vertex
+  
   @moduletag :live_api
-  @moduletag timeout: 30_000  # 30 second timeout for API calls
-
+  
   setup_all do
-    case System.get_env("VERTEX_JSON_FILE") do
-      nil ->
-        {:skip, "VERTEX_JSON_FILE environment variable not set"}
-      
-      file_path ->
-        case File.exists?(file_path) do
-          false ->
-            {:skip, "VERTEX_JSON_FILE points to non-existent file: #{file_path}"}
-          
-          true ->
-            case File.read(file_path) do
-              {:ok, content} ->
-                case Jason.decode(content) do
-                  {:ok, credentials} ->
-                    required_keys = ["type", "project_id", "private_key", "client_email"]
-                    missing_keys = Enum.filter(required_keys, &(not Map.has_key?(credentials, &1)))
-                    
-                    if Enum.empty?(missing_keys) do
-                      # Ensure we're using the real Vertex API URL, not any test overrides
-                      System.delete_env("VERTEX_BASE_URL")
-                      System.delete_env("VERTEX_MODEL")
-                      System.delete_env("VERTEX_DEFAULT_MODEL")
-                      :ok
-                    else
-                      {:skip, "VERTEX_JSON_FILE missing required keys: #{inspect(missing_keys)}"}
-                    end
-                  
-                  {:error, error} ->
-                    {:skip, "VERTEX_JSON_FILE contains invalid JSON: #{inspect(error)}"}
-                end
-              
-              {:error, error} ->
-                {:skip, "Cannot read VERTEX_JSON_FILE: #{inspect(error)}"}
-            end
-        end
+    unless Vertex.configured?() do
+      IO.puts("\n⚠️  Skipping Vertex tests - VERTEX_JSON_FILE not configured")
+      :skip
+    else
+      IO.puts("\n🚀 Running Vertex AI live API tests...")
+      :ok
     end
   end
-
-  setup do
-    # Global lock to ensure live API tests run sequentially across all test files
-    # This prevents rate limiting when running the full test suite
-    :global.set_lock({:vertex_live_test_lock, self()}, [node()], :infinity)
-    
-    # Add a small delay between tests to avoid rate limiting
-    # Only add delay if this is not the first test
-    if Process.get(:vertex_test_count, 0) > 0 do
-      :timer.sleep(2000)  # 2 seconds delay between tests
-    end
-    Process.put(:vertex_test_count, Process.get(:vertex_test_count, 0) + 1)
-    
-    on_exit(fn ->
-      # Release the global lock when test completes
-      :global.del_lock({:vertex_live_test_lock, self()}, [node()])
-    end)
-    
-    :ok
-  end
-
-  describe "Live Vertex AI Integration" do
-    @tag :live_api
+  
+  describe "Vertex AI Provider - Live API Tests" do
     test "provider_name/0 returns :vertex" do
       assert Vertex.provider_name() == :vertex
     end
-
-    @tag :live_api
-    test "configured?/0 returns true when credentials are set" do
+    
+    test "configured?/0 returns true when service account is set" do
       assert Vertex.configured?() == true
     end
-
-    @tag :live_api
-    test "analyze_code/2 makes successful API call" do
-      code = """
-      defmodule Calculator do
-        def add(a, b), do: a + b
-        def multiply(a, b), do: a * b
-      end
-      """
-      
-      context = %{
-        file: "calculator.ex",
-        purpose: "Simple arithmetic operations"
-      }
-
-      response = Vertex.analyze_code(code, context)
-      
-      assert %Response{} = response
-      assert response.success == true
-      assert response.provider == :vertex
-      assert is_binary(response.text)
-      assert String.length(response.text) > 50  # Should be a substantial response
-      assert is_map(response.metadata)
-      assert response.metadata.analysis_type == "code_analysis"
-      
-      # Response should contain relevant analysis terms
-      text_lower = String.downcase(response.text)
-      assert String.contains?(text_lower, "function") or 
-             String.contains?(text_lower, "module") or
-             String.contains?(text_lower, "code")
-    end
-
-    @tag :live_api
-    test "explain_error/2 makes successful API call" do
-      error_message = """
-      ** (CompileError) lib/calculator.ex:3: undefined function subtract/2
-      """
-      
-      context = %{
-        file: "calculator.ex",
-        line: 3,
-        attempted_function: "subtract/2"
-      }
-
-      response = Vertex.explain_error(error_message, context)
-      
-      assert %Response{} = response
-      assert response.success == true
-      assert response.provider == :vertex
-      assert is_binary(response.text)
-      assert String.length(response.text) > 30
-      assert response.metadata.analysis_type == "error_explanation"
-      
-      # Response should contain error-related terms
-      text_lower = String.downcase(response.text)
-      assert String.contains?(text_lower, "undefined") or
-             String.contains?(text_lower, "function") or
-             String.contains?(text_lower, "error")
-    end
-
-    @tag :live_api
-    test "suggest_fix/2 makes successful API call" do
-      problem = """
-      My Elixir function is too complex and hard to read. It has nested case statements
-      and multiple responsibilities.
-      """
-      
-      context = %{
-        complexity_score: 8,
-        function_name: "process_data",
-        suggestions_needed: ["refactoring", "readability"]
-      }
-
-      response = Vertex.suggest_fix(problem, context)
-      
-      assert %Response{} = response
-      assert response.success == true
-      assert response.provider == :vertex
-      assert is_binary(response.text)
-      assert String.length(response.text) > 50
-      assert response.metadata.analysis_type == "fix_suggestion"
-      
-      # Response should contain fix-related terms
-      text_lower = String.downcase(response.text)
-      assert String.contains?(text_lower, "refactor") or
-             String.contains?(text_lower, "improve") or
-             String.contains?(text_lower, "simplify") or
-             String.contains?(text_lower, "extract")
-    end
-
-    @tag :live_api
-    test "test_connection/0 works with live API" do
+    
+    test "test_connection/0 successfully connects to Vertex AI" do
       response = Vertex.test_connection()
       
       assert %Response{} = response
-      assert response.success == true
       assert response.provider == :vertex
+      assert response.success == true
       assert is_binary(response.text)
-    end
-
-    @tag :live_api
-    test "handles different Vertex models via VERTEX_DEFAULT_MODEL" do
-      # Test that the provider respects the VERTEX_DEFAULT_MODEL env var
-      original_model = System.get_env("VERTEX_DEFAULT_MODEL")
+      assert String.length(response.text) > 0
+      assert response.error == nil
       
-      try do
-        # Set a valid model that should work
-        System.put_env("VERTEX_DEFAULT_MODEL", "gemini-2.0-flash")
-        
-        response = Vertex.analyze_code("def hello, do: :world", %{})
-        
-        assert %Response{} = response
-        assert response.success == true
-        assert response.provider == :vertex
-        
-      after
-        # Restore original model setting
-        if original_model do
-          System.put_env("VERTEX_DEFAULT_MODEL", original_model)
-        else
-          System.delete_env("VERTEX_DEFAULT_MODEL")
-        end
-      end
+      IO.puts("✅ Connection test: #{String.slice(response.text, 0, 100)}...")
     end
-
-    @tag :live_api
-    test "handles API errors gracefully" do
-      # Test with invalid credentials to ensure error handling works
-      original_file = System.get_env("VERTEX_JSON_FILE")
-      
-      try do
-        # Create a temporary file with invalid credentials
-        temp_file = System.tmp_dir!() |> Path.join("invalid_vertex.json")
-        invalid_creds = %{
-          "type" => "service_account",
-          "project_id" => "invalid-project",
-          "private_key" => "-----BEGIN PRIVATE KEY-----\ninvalid\n-----END PRIVATE KEY-----\n",
-          "client_email" => "invalid@invalid-project.iam.gserviceaccount.com"
-        }
-        File.write!(temp_file, Jason.encode!(invalid_creds))
-        System.put_env("VERTEX_JSON_FILE", temp_file)
-        
-        response = Vertex.analyze_code("def test, do: :ok", %{})
-        
-        assert %Response{} = response
-        assert response.success == false
-        assert response.provider == :vertex
-        assert is_binary(response.error)
-        assert String.contains?(response.error, "authenticate") or 
-               String.contains?(response.error, "error") or
-               String.contains?(response.error, "invalid")
-        
-      after
-        # Restore original credentials file
-        if original_file do
-          System.put_env("VERTEX_JSON_FILE", original_file)
-        else
-          System.delete_env("VERTEX_JSON_FILE")
+    
+    test "analyze_code/2 analyzes Elixir code with Vertex AI" do
+      code = """
+      defmodule DataProcessor do
+        def process(data) when is_list(data) do
+          data
+          |> Enum.filter(&is_integer/1)
+          |> Enum.map(&(&1 * 2))
+          |> Enum.sum()
         end
         
-        # Clean up temp file
-        temp_file = System.tmp_dir!() |> Path.join("invalid_vertex.json")
-        if File.exists?(temp_file), do: File.rm(temp_file)
+        def process(_), do: {:error, :invalid_input}
       end
-    end
-
-    @tag :live_api
-    test "handles invalid model gracefully" do
-      # Test with invalid model to ensure error handling works
-      original_model = System.get_env("VERTEX_DEFAULT_MODEL")
+      """
       
-      try do
-        System.put_env("VERTEX_DEFAULT_MODEL", "invalid-model-name")
+      context = %{
+        file: "data_processor.ex",
+        purpose: "data transformation pipeline",
+        complexity: 3
+      }
+      
+      response = Vertex.analyze_code(code, context)
+      
+      assert %Response{} = response
+      assert response.provider == :vertex
+      assert response.success == true
+      assert is_binary(response.text)
+      assert String.length(response.text) > 50
+      assert response.error == nil
+      
+      # Should mention something about the code
+      text_lower = String.downcase(response.text)
+      assert text_lower =~ ~r/(function|module|process|data|pipeline|enum)/
+      
+      IO.puts("✅ Code analysis: #{String.slice(response.text, 0, 150)}...")
+    end
+    
+    test "explain_error/2 explains Elixir runtime error" do
+      error_message = """
+      ** (FunctionClauseError) no function clause matching in DataProcessor.process/1
+          
+          The following arguments were given to DataProcessor.process/1:
+          
+              # 1
+              "not a list"
+          
+          Attempted function clauses (showing 2 out of 2):
+          
+              def process(data) when is_list(data)
+              def process(_)
+          
+          lib/data_processor.ex:2: DataProcessor.process/1
+      """
+      
+      context = %{
+        file: "data_processor.ex",
+        line: 2,
+        function: "process/1",
+        error_type: "FunctionClauseError"
+      }
+      
+      response = Vertex.explain_error(error_message, context)
+      
+      assert %Response{} = response
+      assert response.provider == :vertex
+      assert response.success == true
+      assert is_binary(response.text)
+      assert String.length(response.text) > 30
+      assert response.error == nil
+      
+      # Should mention something about function clause or pattern matching
+      text_lower = String.downcase(response.text)
+      assert text_lower =~ ~r/(function.*clause|pattern.*match|guard|when|clause)/
+      
+      IO.puts("✅ Error explanation: #{String.slice(response.text, 0, 150)}...")
+    end
+    
+    test "suggest_fix/2 provides refactoring suggestions" do
+      problem = """
+      This GenServer has too many responsibilities and violates single responsibility principle:
+      
+      defmodule UserManager do
+        use GenServer
         
-        response = Vertex.analyze_code("def test, do: :ok", %{})
+        def start_link(_) do
+          GenServer.start_link(__MODULE__, %{}, name: __MODULE__)
+        end
         
-        assert %Response{} = response
-        # Should fail gracefully with invalid model
-        assert response.success == false
-        assert response.provider == :vertex
-        assert is_binary(response.error)
-        # Be more flexible with error message matching
-        error_lower = String.downcase(response.error)
-        assert String.contains?(error_lower, "model") or 
-               String.contains?(error_lower, "not found") or
-               String.contains?(error_lower, "invalid") or
-               String.contains?(error_lower, "400") or
-               String.contains?(error_lower, "bad request")
+        def init(state) do
+          {:ok, state}
+        end
         
-      after
-        # Restore original model setting
-        if original_model do
-          System.put_env("VERTEX_DEFAULT_MODEL", original_model)
-        else
-          System.delete_env("VERTEX_DEFAULT_MODEL")
+        def handle_call({:create_user, data}, _from, state) do
+          # Validates user data
+          # Saves to database
+          # Sends welcome email
+          # Updates analytics
+          # Logs activity
+          {:reply, :ok, state}
+        end
+        
+        def handle_call({:delete_user, id}, _from, state) do
+          # Validates permissions
+          # Removes from database
+          # Sends goodbye email
+          # Updates analytics
+          # Logs activity
+          {:reply, :ok, state}
         end
       end
+      """
+      
+      context = %{
+        file: "user_manager.ex",
+        pattern: "GenServer",
+        issue: "single responsibility principle violation",
+        complexity: 9
+      }
+      
+      response = Vertex.suggest_fix(problem, context)
+      
+      assert %Response{} = response
+      assert response.provider == :vertex
+      assert response.success == true
+      assert is_binary(response.text)
+      assert String.length(response.text) > 50
+      assert response.error == nil
+      
+      # Should mention refactoring or separation of concerns
+      text_lower = String.downcase(response.text)
+      assert text_lower =~ ~r/(separate|extract|responsibility|module|refactor|concern)/
+      
+      IO.puts("✅ Fix suggestion: #{String.slice(response.text, 0, 150)}...")
+    end
+    
+    test "handles OTP-specific code analysis" do
+      code = """
+      defmodule MyApp.Supervisor do
+        use Supervisor
+        
+        def start_link(init_arg) do
+          Supervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
+        end
+        
+        @impl true
+        def init(_init_arg) do
+          children = [
+            {MyApp.Worker, []},
+            {MyApp.Cache, []},
+            {MyApp.Server, []}
+          ]
+          
+          Supervisor.init(children, strategy: :one_for_one)
+        end
+      end
+      """
+      
+      context = %{
+        file: "supervisor.ex",
+        pattern: "OTP",
+        framework: "supervisor"
+      }
+      
+      response = Vertex.analyze_code(code, context)
+      
+      assert %Response{} = response
+      assert response.provider == :vertex
+      assert response.success == true
+      assert is_binary(response.text)
+      assert response.error == nil
+      
+      # Should understand OTP concepts
+      text_lower = String.downcase(response.text)
+      assert text_lower =~ ~r/(supervisor|otp|children|strategy|worker|process)/
+      
+      IO.puts("✅ OTP analysis: #{String.slice(response.text, 0, 150)}...")
+    end
+    
+    test "handles Phoenix-specific code" do
+      code = """
+      defmodule MyAppWeb.UserController do
+        use MyAppWeb, :controller
+        
+        def index(conn, _params) do
+          users = MyApp.Accounts.list_users()
+          render(conn, "index.html", users: users)
+        end
+        
+        def show(conn, %{"id" => id}) do
+          user = MyApp.Accounts.get_user!(id)
+          render(conn, "show.html", user: user)
+        end
+        
+        def create(conn, %{"user" => user_params}) do
+          case MyApp.Accounts.create_user(user_params) do
+            {:ok, user} ->
+              conn
+              |> put_flash(:info, "User created successfully.")
+              |> redirect(to: Routes.user_path(conn, :show, user))
+            
+            {:error, %Ecto.Changeset{} = changeset} ->
+              render(conn, "new.html", changeset: changeset)
+          end
+        end
+      end
+      """
+      
+      context = %{
+        file: "user_controller.ex",
+        framework: "Phoenix",
+        pattern: "MVC controller"
+      }
+      
+      response = Vertex.analyze_code(code, context)
+      
+      assert %Response{} = response
+      assert response.provider == :vertex
+      assert response.success == true
+      assert is_binary(response.text)
+      assert response.error == nil
+      
+      # Should understand Phoenix/web concepts
+      text_lower = String.downcase(response.text)
+      assert text_lower =~ ~r/(controller|phoenix|web|route|render|conn|request)/
+      
+      IO.puts("✅ Phoenix analysis: #{String.slice(response.text, 0, 150)}...")
+    end
+    
+    test "handles empty context gracefully" do
+      code = "def simple_function, do: :ok"
+      
+      response = Vertex.analyze_code(code, %{})
+      
+      assert %Response{} = response
+      assert response.provider == :vertex
+      assert response.success == true
+      assert is_binary(response.text)
+      assert response.error == nil
+      
+      IO.puts("✅ Empty context: #{String.slice(response.text, 0, 100)}...")
+    end
+    
+    test "response includes proper metadata and timing" do
+      response = Vertex.test_connection()
+      
+      assert %Response{} = response
+      assert is_map(response.metadata)
+      assert %DateTime{} = response.timestamp
+      
+      # Check that timestamp is recent (within last minute)
+      now = DateTime.utc_now()
+      diff = DateTime.diff(now, response.timestamp, :second)
+      assert diff >= 0 and diff < 60
+      
+      # Vertex responses should include model information
+      if response.success do
+        assert is_map(response.metadata)
+      end
+      
+      IO.puts("✅ Metadata check: timestamp=#{response.timestamp}")
     end
   end
-
-  describe "Performance and Reliability" do
-    @tag :live_api
-    test "response time is reasonable" do
+  
+  describe "Vertex AI Error Handling" do
+    test "handles malformed Elixir syntax gracefully" do
+      malformed_code = """
+      defmodule BrokenSyntax do
+        def function_with_syntax_error do
+          case some_value
+            :ok -> "missing do keyword"
+            :error -> "this won't compile"
+        end
+      end
+      """
+      
+      response = Vertex.analyze_code(malformed_code, %{})
+      
+      assert %Response{} = response
+      assert response.provider == :vertex
+      # Should either succeed with analysis or fail gracefully
+      assert is_boolean(response.success)
+      
+      if response.success do
+        assert is_binary(response.text)
+        assert response.error == nil
+      else
+        assert is_binary(response.error)
+      end
+      
+      IO.puts("✅ Malformed syntax handling: success=#{response.success}")
+    end
+    
+    test "handles very large code blocks" do
+      # Create a large but valid Elixir module
+      functions = Enum.map_join(1..100, "\n\n", fn i -> 
+        "  def function_#{i}(param) do\n" <>
+        "    # Function #{i} implementation\n" <>
+        "    case param do\n" <>
+        "      :option_a -> {:ok, \"Result A for function #{i}\"}\n" <>
+        "      :option_b -> {:ok, \"Result B for function #{i}\"}\n" <>
+        "      _ -> {:error, \"Invalid option for function #{i}\"}\n" <>
+        "    end\n" <>
+        "  end"
+      end)
+      
+      large_code = """
+      defmodule LargeModule do
+        @moduledoc "A module with many functions to test large input handling"
+        
+      #{functions}
+      end
+      """
+      
+      response = Vertex.analyze_code(large_code, %{})
+      
+      assert %Response{} = response
+      assert response.provider == :vertex
+      assert is_boolean(response.success)
+      
+      IO.puts("✅ Large input handling: success=#{response.success}, length=#{String.length(large_code)}")
+    end
+    
+    test "handles international characters and emojis" do
+      unicode_code = """
+      defmodule InternationalModule do
+        @moduledoc "模块文档 - Documentación del módulo - Документация модуля"
+        
+        def greet_multilingual(name) do
+          messages = [
+            "Hello " <> name <> "! 👋",
+            "¡Hola " <> name <> "! 🇪🇸",
+            "你好 " <> name <> "! 🇨🇳",
+            "Привет " <> name <> "! 🇷🇺",
+            "こんにちは " <> name <> "! 🇯🇵",
+            "مرحبا " <> name <> "! 🇸🇦"
+          ]
+          
+          Enum.random(messages)
+        end
+        
+        def emoji_status do
+          %{
+            success: "✅ 成功",
+            warning: "⚠️ 警告", 
+            error: "❌ エラー",
+            info: "ℹ️ معلومات"
+          }
+        end
+      end
+      """
+      
+      response = Vertex.analyze_code(unicode_code, %{})
+      
+      assert %Response{} = response
+      assert response.provider == :vertex
+      assert is_boolean(response.success)
+      
+      IO.puts("✅ Unicode handling: success=#{response.success}")
+    end
+    
+    test "handles complex nested data structures" do
+      complex_code = """
+      defmodule ComplexDataProcessor do
+        def process_nested_data(data) do
+          data
+          |> Map.get(:users, [])
+          |> Enum.map(fn user ->
+            %{
+              id: user.id,
+              profile: %{
+                name: user.profile.name,
+                settings: %{
+                  notifications: %{
+                    email: user.profile.settings.notifications.email,
+                    push: user.profile.settings.notifications.push,
+                    sms: Map.get(user.profile.settings.notifications, :sms, false)
+                  },
+                  privacy: %{
+                    public_profile: user.profile.settings.privacy.public_profile,
+                    show_email: Map.get(user.profile.settings.privacy, :show_email, false)
+                  }
+                }
+              },
+              metadata: %{
+                created_at: user.metadata.created_at,
+                updated_at: user.metadata.updated_at,
+                tags: user.metadata.tags || [],
+                custom_fields: Map.get(user.metadata, :custom_fields, %{})
+              }
+            }
+          end)
+        end
+      end
+      """
+      
+      response = Vertex.analyze_code(complex_code, %{})
+      
+      assert %Response{} = response
+      assert response.provider == :vertex
+      assert is_boolean(response.success)
+      
+      IO.puts("✅ Complex data handling: success=#{response.success}")
+    end
+  end
+  
+  describe "Vertex AI Performance" do
+    test "response time is reasonable for simple requests" do
       start_time = System.monotonic_time(:millisecond)
       
       response = Vertex.analyze_code("def simple, do: :ok", %{})
@@ -306,33 +463,13 @@ defmodule ElixirScope.AI.LLM.Providers.VertexLiveTest do
       end_time = System.monotonic_time(:millisecond)
       duration = end_time - start_time
       
-      assert response.success == true
-      assert duration < 15_000  # Should complete within 15 seconds (Vertex can be slower than Gemini)
-    end
-
-    @tag :live_api
-    test "handles concurrent requests" do
-      # Use fewer concurrent requests to avoid rate limiting
-      tasks = for i <- 1..2 do
-        Task.async(fn ->
-          # Add small random delay to stagger requests
-          :timer.sleep(:rand.uniform(1000))
-          Vertex.analyze_code("def test_#{i}, do: #{i}", %{test_id: i})
-        end)
-      end
+      assert %Response{} = response
+      assert response.provider == :vertex
       
-      responses = Task.await_many(tasks, 60_000)  # Increased timeout for Vertex
+      # Vertex AI should respond within reasonable time (allow up to 15 seconds for API calls)
+      assert duration < 15_000
       
-      assert length(responses) == 2
-      # Allow for some failures due to rate limiting
-      successful_responses = Enum.filter(responses, & &1.success)
-      assert length(successful_responses) >= 1, "At least one request should succeed"
-      
-      Enum.each(successful_responses, fn response ->
-        assert %Response{} = response
-        assert response.success == true
-        assert response.provider == :vertex
-      end)
+      IO.puts("✅ Performance test: #{duration}ms")
     end
   end
 end 

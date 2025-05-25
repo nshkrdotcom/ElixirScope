@@ -73,7 +73,32 @@ defmodule ElixirScope.MixProject do
       "test.trace": ["test --trace --exclude live_api"],
       "test.live": ["test --only live_api"],
       "test.all": ["test --include live_api"],
-      "test.fast": ["test --exclude live_api --max-cases 48"]
+      "test.fast": ["test --exclude live_api --max-cases 48"],
+      
+      # Provider-specific test aliases
+      "test.gemini": ["test --trace test/elixir_scope/ai/llm/providers/gemini_live_test.exs"],
+      "test.vertex": ["test --trace test/elixir_scope/ai/llm/providers/vertex_live_test.exs"],
+      "test.mock": ["test --trace test/elixir_scope/ai/llm/providers/mock_test.exs"],
+      
+      # LLM-focused test aliases
+      "test.llm": ["test --trace --exclude live_api test/elixir_scope/ai/llm/"],
+      "test.llm.live": ["test --trace --only live_api test/elixir_scope/ai/llm/"]
+    ]
+  end
+  
+  def cli do
+    [
+      preferred_envs: [
+        "test.trace": :test,
+        "test.live": :test,
+        "test.all": :test,
+        "test.fast": :test,
+        "test.gemini": :test,
+        "test.vertex": :test,
+        "test.mock": :test,
+        "test.llm": :test,
+        "test.llm.live": :test
+      ]
     ]
   end
 end 
