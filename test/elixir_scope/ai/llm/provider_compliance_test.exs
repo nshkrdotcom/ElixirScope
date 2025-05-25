@@ -21,6 +21,9 @@ defmodule ElixirScope.AI.LLM.ProviderComplianceTest do
       test "#{provider_module} implements all required callbacks" do
         provider_module = unquote(provider_module)
         
+        # Ensure the module is loaded
+        Code.ensure_loaded!(provider_module)
+        
         # Check that the module implements the Provider behaviour
         assert function_exported?(provider_module, :analyze_code, 2)
         assert function_exported?(provider_module, :explain_error, 2)
