@@ -242,7 +242,7 @@ graph TB
 ## 5. Query Patterns and Data Flow
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph "Query Types"
         Q1[Timeline Query]
         Q2[Process History]
@@ -501,7 +501,7 @@ flowchart TB
 ## 10. Testing Strategy Visualization
 
 ```mermaid
-graph TB
+graph LR
     subgraph "Test Levels"
         UT[Unit Tests<br/>325 tests]
         IT[Integration Tests]
