@@ -50,7 +50,10 @@ defmodule ElixirScope.MixProject do
       {:benchee, "~> 1.1", only: :test},
       
       # JSON for configuration and serialization
-      {:jason, "~> 1.4"}
+      {:jason, "~> 1.4"},
+      
+      # HTTP client for LLM providers
+      {:httpoison, "~> 2.0"}
     ]
   end
 end 
