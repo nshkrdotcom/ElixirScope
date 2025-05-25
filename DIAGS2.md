@@ -559,31 +559,36 @@ graph LR
 
 ```mermaid
 journey
-    title Developer Debugging with ElixirScope
-    
-    section Setup
-      Add ElixirScope dep: 5: Developer
-      Configure settings: 4: Developer
-      Run mix compile: 5: Developer, AI
-      Code instrumented: 5: AI, AST
-    
-    section Capture
-      Run application: 5: Developer
-      Events captured: 5: Runtime
-      States recorded: 5: Runtime
-      Messages traced: 5: Runtime
-    
-    section Investigation
-      Query timeline: 5: Developer, Query
-      Find anomaly: 4: Developer
-      Trace causality: 5: Developer, Correlator
-      Examine state: 5: Developer, Storage
-    
-    section Analysis
-      AI explains: 4: AI
-      Pattern identified: 5: AI
-      Root cause found: 5: Developer, AI
-      Fix implemented: 5: Developer
+  title Developer Debugging with ElixirScope - Part 1: Setup and Capture
+
+  section Setup
+    Add ElixirScope dep: 5: Developer
+    Configure settings: 4: Developer
+    Run mix compile: 5: Developer, AI
+    Code instrumented: 5: AI, AST
+
+  section Capture
+    Run application: 5: Developer
+    Events captured: 5: Runtime
+    States recorded: 5: Runtime
+    Messages traced: 5: Runtime
+```
+
+```mermaid
+journey
+  title Developer Debugging with ElixirScope - Part 2: Investigation and Analysis
+
+  section Investigation
+    Query timeline: 5: Developer, Query
+    Find anomaly: 4: Developer
+    Trace causality: 5: Developer, Correlator
+    Examine state: 5: Developer, Storage
+
+  section Analysis
+    AI explains: 4: AI
+    Pattern identified: 5: AI
+    Root cause found: 5: Developer, AI
+    Fix implemented: 5: Developer
 ```
 
 ## 12. Future Architecture Evolution
