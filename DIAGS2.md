@@ -70,7 +70,7 @@ graph LR
 ## 2. Module Dependency Graph
 
 ```mermaid
-graph BT
+graph LR
     subgraph "Core Layer"
         Utils
         Events
