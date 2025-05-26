@@ -1,8 +1,8 @@
 # ElixirScope: The Execution Cinema Debugger for Elixir
 
-<!--[![Elixir CI](https://github.com/your-repo/elixir_scope/actions/workflows/ci.yml/badge.svg)](https://github.com/your-repo/elixir_scope/actions/workflows/ci.yml)-->
-[![Hex.pm](https://img.shields.io/hexpm/v/elixir_scope.svg)](https://hex.pm/packages/elixir_scope)
-[![License](https://img.shields.io/hexpm/l/elixir_scope.svg)](https://github.com/your-repo/elixir_scope/blob/main/LICENSE)
+<!--[![Elixir CI](https://github.com/your-repo/elixir_scope/actions/workflows/ci.yml/badge.svg)](https://github.com/your-repo/elixir_scope/actions/workflows/ci.yml) -->
+<!--[![Hex.pm](https://img.shields.io/hexpm/v/elixir_scope.svg)](https://hex.pm/packages/elixir_scope) -->
+<!--[![License](https://img.shields.io/hexpm/l/elixir_scope.svg)](https://github.com/your-repo/elixir_scope/blob/main/LICENSE) -->
 
 **ElixirScope is a next-generation debugging and observability platform for Elixir applications, designed to provide an "Execution Cinema" experience. It combines the deep, granular insights of compile-time AST instrumentation with the flexibility and production-safety of runtime tracing, all guided by AI-powered analysis.**
 
