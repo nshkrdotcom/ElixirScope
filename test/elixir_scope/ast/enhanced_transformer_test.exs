@@ -260,7 +260,7 @@ defmodule ElixirScope.AST.EnhancedTransformerTest do
 
   defp custom_logic_injected?(ast, logic) do
     # Check if custom logic is present in the AST
-    logic_string = Macro.to_string(logic)
+    _logic_string = Macro.to_string(logic)
     ast_string = Macro.to_string(ast)
     String.contains?(ast_string, "IO.puts") and String.contains?(ast_string, "checkpoint")
   end
@@ -322,7 +322,7 @@ defmodule ElixirScope.AST.EnhancedTransformerTest do
     end) |> elem(1)
   end
 
-  defp custom_injection_present?(ast, line_number) do
+  defp custom_injection_present?(ast, _line_number) do
     # Check if custom injection is present at line
     # This is a simplified check - in practice would need more sophisticated logic
     ast_string = Macro.to_string(ast)

@@ -154,7 +154,7 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
   at specific points in function execution.
   """
   @spec report_local_variable_snapshot(correlation_id(), map(), non_neg_integer(), atom()) :: :ok
-  def report_local_variable_snapshot(correlation_id, variables, line, source \\ :ast) do
+  def report_local_variable_snapshot(correlation_id, variables, line, _source \\ :ast) do
     case get_context() do
       %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
         Ingestor.ingest_generic_event(
@@ -183,7 +183,7 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
   expressions during execution.
   """
   @spec report_expression_value(correlation_id(), String.t(), term(), non_neg_integer(), atom()) :: :ok
-  def report_expression_value(correlation_id, expression, value, line, source \\ :ast) do
+  def report_expression_value(correlation_id, expression, value, line, _source \\ :ast) do
     case get_context() do
       %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
         Ingestor.ingest_generic_event(
@@ -212,7 +212,7 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
   This is called by AST-injected code to mark execution of specific lines.
   """
   @spec report_line_execution(correlation_id(), non_neg_integer(), map(), atom()) :: :ok
-  def report_line_execution(correlation_id, line, context, source \\ :ast) do
+  def report_line_execution(correlation_id, line, context, _source \\ :ast) do
     case get_context() do
       %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
         Ingestor.ingest_generic_event(

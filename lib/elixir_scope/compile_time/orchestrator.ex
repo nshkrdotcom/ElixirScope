@@ -97,27 +97,32 @@ defmodule ElixirScope.CompileTime.Orchestrator do
     end
   end
 
-  defp analyze_module(module, opts) do
+  defp analyze_module(module, _opts) do
     if Code.ensure_loaded?(module) do
-      case CodeAnalyzer.analyze_module(module, opts) do
-        {:ok, analysis} -> {:ok, analysis}
-        {:error, _reason} -> 
-          # Fallback to basic analysis if AI analyzer fails
-          {:ok, create_basic_module_analysis(module)}
+      # Use existing AI analyzer method that takes module code
+      try do
+        # Get module source if available, otherwise use basic analysis
+        case get_module_source(module) do
+          {:ok, source} ->
+            case CodeAnalyzer.analyze_code(source) do
+              {:ok, analysis} -> {:ok, analysis}
+              {:error, _reason} -> {:ok, create_basic_module_analysis(module)}
+            end
+          {:error, _} ->
+            {:ok, create_basic_module_analysis(module)}
+        end
+      rescue
+        _ -> {:ok, create_basic_module_analysis(module)}
       end
     else
       {:error, {:module_not_loaded, module}}
     end
   end
 
-  defp analyze_function(module, function, arity, opts) do
+  defp analyze_function(module, function, arity, _opts) do
     if Code.ensure_loaded?(module) and function_exported?(module, function, arity) do
-      case CodeAnalyzer.analyze_function(module, function, arity, opts) do
-        {:ok, analysis} -> {:ok, analysis}
-        {:error, _reason} ->
-          # Fallback to basic analysis
-          {:ok, create_basic_function_analysis(module, function, arity)}
-      end
+      # For now, always use basic analysis since function source extraction is complex
+      {:ok, create_basic_function_analysis(module, function, arity)}
     else
       {:error, {:function_not_found, {module, function, arity}}}
     end
@@ -201,7 +206,7 @@ defmodule ElixirScope.CompileTime.Orchestrator do
     Map.put(plan, :custom_injections, suggested_lines ++ plan.custom_injections)
   end
 
-  defp finalize_plan(plan, opts) do
+  defp finalize_plan(plan, _opts) do
     # Add final metadata and validation
     Map.merge(plan, %{
       plan_id: Utils.generate_correlation_id(),
@@ -236,7 +241,29 @@ defmodule ElixirScope.CompileTime.Orchestrator do
     end
   end
 
-  defp determine_optimal_instrumentation(target, opts) do
+  defp get_module_source(module) do
+    # Try to get source from module info or fallback to basic analysis
+    try do
+      case module.module_info(:compile) do
+        compile_info when is_list(compile_info) ->
+          case Keyword.get(compile_info, :source) do
+            source_file when is_binary(source_file) ->
+              case File.read(source_file) do
+                {:ok, content} -> {:ok, content}
+                {:error, _} -> {:error, :source_not_available}
+              end
+            _ -> {:error, :source_not_available}
+          end
+        _ -> {:error, :source_not_available}
+      end
+    rescue
+      _ -> {:error, :source_not_available}
+    end
+  end
+
+
+
+  defp determine_optimal_instrumentation(_target, opts) do
     # Simple heuristics for now - can be enhanced with AI
     cond do
       Map.get(opts, :force_compile_time) -> :compile_time

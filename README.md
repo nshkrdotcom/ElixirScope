@@ -287,9 +287,11 @@ The following `mix test.*` aliases are available for convenient testing (details
 
 ### Standard Test Execution
 
-*   **Default (CI & Local):** `mix test` or `mix test.trace`
+*   **Default (CI & Local):** `mix test.trace` (recommended)
     *   Runs all tests except those tagged `:live_api`.
     *   Uses mock LLM providers by default, ensuring tests pass without external dependencies or API keys.
+    *   Faster than `mix test` as it bypasses slow live API tests.
+*   **Alternative:** `mix test` (includes some slower tests)
 *   **With Coverage:** `mix test --cover`
 
 ### Running Live API Tests

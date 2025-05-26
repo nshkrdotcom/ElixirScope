@@ -9,8 +9,9 @@ defmodule ElixirScope.AST.EnhancedTransformer do
   - Runtime system coordination
   """
 
-  alias ElixirScope.AST.{Transformer, InjectorHelpers}
-  alias ElixirScope.Utils
+  # Note: These aliases will be used when full integration is implemented
+  # alias ElixirScope.AST.{Transformer, InjectorHelpers}
+  # alias ElixirScope.Utils
 
   @doc """
   Transforms AST with runtime bridge and enhanced capabilities.
@@ -95,7 +96,7 @@ defmodule ElixirScope.AST.EnhancedTransformer do
       end
       
       # Check runtime flags before executing AST instrumentation
-      if ast_tracing_enabled?(unquote(module_name)) do
+      if ElixirScope.AST.EnhancedTransformer.ast_tracing_enabled?(unquote(module_name)) do
         unquote(ast)
       else
         # AST instrumentation disabled at runtime - execute original code
@@ -106,7 +107,7 @@ defmodule ElixirScope.AST.EnhancedTransformer do
 
   defp inject_variable_capture_at_line(ast, locals, target_line) do
     Macro.prewalk(ast, fn
-      {form, meta, args} = node when is_list(meta) ->
+      {_form, meta, _args} = node when is_list(meta) ->
         line = meta[:line]
         
         if line == target_line do
@@ -187,7 +188,7 @@ defmodule ElixirScope.AST.EnhancedTransformer do
     end
   end
 
-  defp inject_custom_logic_at_line(ast, target_line, position, logic) do
+  defp inject_custom_logic_at_line(ast, _target_line, position, logic) do
     # For now, inject at the beginning of the function body since line matching is complex
     case ast do
       {:def, meta, [signature, body]} ->
@@ -239,26 +240,31 @@ defmodule ElixirScope.AST.EnhancedTransformer do
   end
 
   defp should_instrument_function?(function_name, plan) do
-    functions = Map.get(plan, :functions, %{})
+    functions = Map.get(plan, :functions, [])
     
     # Check if this function should be instrumented
     cond do
       # If functions is empty, instrument all
-      map_size(functions) == 0 -> true
+      is_list(functions) and length(functions) == 0 -> true
+      is_map(functions) and map_size(functions) == 0 -> true
       
-      # Check if function is in the plan (try different key formats)
-      Enum.any?(functions, fn
-        {{_module, ^function_name, _arity}, _plan} -> true
-        {{^function_name, _arity}, _plan} -> true
-        _ -> false
-      end) -> true
+      # If functions is a list of function names
+      is_list(functions) -> function_name in functions
+      
+      # If functions is a map, check if function is in the plan (try different key formats)
+      is_map(functions) ->
+        Enum.any?(functions, fn
+          {{_module, ^function_name, _arity}, _plan} -> true
+          {{^function_name, _arity}, _plan} -> true
+          _ -> false
+        end)
       
       # Default to not instrumenting
       true -> false
     end
   end
 
-  defp ast_tracing_enabled?(module_name) do
+  def ast_tracing_enabled?(module_name) do
     # Check if AST tracing is enabled for this module
     # This will be coordinated with the runtime system
     case :persistent_term.get({:elixir_scope_ast_enabled, module_name}, :not_found) do

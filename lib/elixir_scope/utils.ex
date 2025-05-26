@@ -121,9 +121,21 @@ defmodule ElixirScope.Utils do
 
   @doc """
   Generates a unique correlation ID for tracing events.
+  Returns a UUID v4 string for compatibility with external systems.
   """
   def generate_correlation_id do
-    :erlang.unique_integer([:positive, :monotonic])
+    # Generate a UUID v4 string
+    <<u0::32, u1::16, u2::16, u3::16, u4::48>> = :crypto.strong_rand_bytes(16)
+    
+    # Set version (4) and variant bits
+    u2_with_version = (u2 &&& 0x0FFF) ||| 0x4000
+    u3_with_variant = (u3 &&& 0x3FFF) ||| 0x8000
+    
+    # Format as UUID string
+    :io_lib.format("~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b", 
+                   [u0, u1, u2_with_version, u3_with_variant, u4])
+    |> :erlang.iolist_to_binary()
+    |> String.downcase()
   end
 
   @doc """
