@@ -1,414 +1,361 @@
-# ElixirScope
+# ElixirScope: The Execution Cinema Debugger for Elixir
 
-**AI-Powered Execution Cinema Debugger for Elixir/BEAM**
+[![Elixir CI](https://github.com/your-repo/elixir_scope/actions/workflows/ci.yml/badge.svg)](https://github.com/your-repo/elixir_scope/actions/workflows/ci.yml)
+[![Hex.pm](https://img.shields.io/hexpm/v/elixir_scope.svg)](https://hex.pm/packages/elixir_scope)
+[![License](https://img.shields.io/hexpm/l/elixir_scope.svg)](https://github.com/your-repo/elixir_scope/blob/main/LICENSE)
 
-ElixirScope is a next-generation debugging and observability platform that provides "Execution Cinema" - a comprehensive view of your Elixir application's runtime behavior with AI-guided instrumentation and time-travel debugging capabilities.
+**ElixirScope is a next-generation debugging and observability platform for Elixir applications, designed to provide an "Execution Cinema" experience. It combines the deep, granular insights of compile-time AST instrumentation with the flexibility and production-safety of runtime tracing, all guided by AI-powered analysis.**
 
-## ✨ Vision
+Our vision is to revolutionize how developers understand, debug, and optimize complex concurrent and distributed Elixir systems by offering:
 
-ElixirScope revolutionizes Elixir debugging by providing:
-
-- **Total Behavioral Recall**: Capture complete execution history with minimal overhead
-- **AI-Driven Instrumentation**: Intelligent code analysis and automatic instrumentation planning  
-- **Time-Travel Debugging**: Navigate through execution history with intuitive UI
-- **Multi-Dimensional Analysis**: Correlate events across temporal, process, state, and performance dimensions
-- **Production-Ready Performance**: Sub-microsecond event capture overhead
-
-## 🚀 Current Status
-
-**Version**: 0.1.0 (Foundation Complete)  
-**Status**: ✅ **PRODUCTION READY FOUNDATION** - Zero Compilation Warnings
-
-### What's Working ✅
-
-✅ **Complete Event Capture Pipeline**
-- Ultra-fast ring buffer implementation with <1µs write performance  
-- Asynchronous event processing and storage
-- ETS-based data access with multiple indexes
-- Batch processing with 24x performance improvement
-
-✅ **AI Analysis Engine**  
-- Code complexity analysis and pattern recognition
-- Instrumentation planning and orchestration
-- Rule-based decision making for optimal tracing
-
-✅ **Cross-Framework Integration**
-- Phoenix request/response lifecycle
-- LiveView mount, events, and state changes  
-- GenServer callbacks and state monitoring
-- Ecto query tracing
-- Phoenix Channels support
-
-✅ **Distributed System Support**
-- Node coordination and event synchronization
-- Hybrid logical clocks for distributed timing
-- Cross-node event correlation
-
-✅ **Production-Ready Quality**
-- **325 passing tests** with comprehensive coverage (9 intentionally excluded)
-- **Zero compilation warnings** - clean production build
-- Lock-free concurrent data structures
-- Configurable sampling and performance budgets
-- Robust error handling and recovery
-
-## 🏗️ Architecture
-
-ElixirScope is built on a **7-layer foundation architecture**:
-
-**Layer 1**: Core data structures and utilities  
-**Layer 2**: High-performance event capture pipeline  
-**Layer 3**: AST transformation and code instrumentation  
-**Layer 4**: AI analysis and planning engine  
-**Layer 5**: Cross-framework integration (Phoenix, LiveView, etc.)  
-**Layer 6**: Time-travel debugging and correlation  
-**Layer 7**: Production monitoring and observability  
-
-## 🚀 Quick Start
-
-### Installation
-
-Add ElixirScope to your `mix.exs`:
-
-```elixir
-def deps do
-  [
-    {:elixir_scope, "~> 0.1.0"}
-  ]
-end
-```
-
-### Basic Usage
-
-1. **Start ElixirScope**:
-```elixir
-{:ok, _} = ElixirScope.start()
-```
-
-2. **Capture Events**:
-```elixir
-# Manual event capture
-ElixirScope.Capture.Ingestor.ingest_function_call(
-  buffer, MyModule, :my_function, [arg1, arg2], self(), "correlation-123"
-)
-
-# Batch processing (24x faster)
-events = [event1, event2, event3]
-{:ok, count} = ElixirScope.Capture.Ingestor.ingest_batch(buffer, events)
-```
-
-3. **Query Events**:
-```elixir
-# Get event by ID
-{:ok, event} = ElixirScope.Storage.DataAccess.get_event_by_id(event_id)
-
-# Query with filters  
-events = ElixirScope.Storage.DataAccess.query_events(%{
-  module: MyModule,
-  function: :my_function,
-  timerange: {start_time, end_time}
-})
-```
-
-### Configuration
-
-```elixir
-# config/config.exs
-config :elixir_scope,
-  ai: [
-    planning: [
-      default_strategy: :balanced,
-      sampling_rate: 0.8
-    ]
-  ],
-  capture: [
-    buffer_size: 1024,
-    batch_size: 50,
-    async_processing: true
-  ]
-```
-
-## 📊 Performance
-
-ElixirScope is designed for production use with minimal overhead:
-
-- **Event Capture**: <1µs per event (sub-microsecond performance)
-- **Batch Processing**: 24x faster than individual writes (242ns vs 5,825ns per event)
-- **Memory Efficient**: Configurable ring buffers with overflow strategies
-- **Concurrent Safe**: Lock-free data structures for high throughput
-
-## 🧪 Testing
-
-ElixirScope uses **mock providers by default** in test environment for fast, reliable testing without external dependencies:
-
-```bash
-# Run all tests (uses mock providers automatically)
-mix test
-
-# Run with coverage
-mix test --cover
-
-# Run live API tests (requires credentials)
-mix test --only live_api
-
-# Run performance tests
-mix test --include performance
-```
-
-**Current Results**: ✅ **530 tests, 0 failures**
-
-**Key Features**:
-- 🚀 **Fast**: Mock providers ensure sub-second test execution
-- 🔒 **Secure**: No API keys required for standard testing
-- 🌐 **Live Testing**: Optional real API integration tests
-- 📊 **Comprehensive**: Full coverage of all LLM providers and scenarios
-
-See [`TEST_CURSOR.md`](TEST_CURSOR.md) for detailed testing documentation.
-
-## 📚 Documentation
-
-- **[Technical Architecture](docs/)**: Detailed implementation guides and specifications
-- **[Development Progress](PROGRESS.md)**: Milestone tracking and implementation status  
-- **[Warnings Analysis](WARNINGS.md)**: Compilation and runtime optimization tracking
-- **[API Documentation](https://hexdocs.pm/elixir_scope)**: Complete API reference
-
-## 🛠️ Development
-
-### Prerequisites
-
-- Elixir 1.15+
-- Erlang/OTP 25+
-
-### Setup
-
-```bash
-git clone https://github.com/yourusername/elixir_scope.git
-cd elixir_scope
-mix deps.get
-mix compile
-mix test
-```
-
-### Architecture Overview
-
-```
-Application
-├── AI Layer (Analysis & Planning)
-│   ├── CodeAnalyzer - AST analysis and pattern recognition
-│   ├── ComplexityAnalyzer - Code complexity scoring  
-│   ├── PatternRecognizer - Framework pattern detection
-│   └── Orchestrator - AI coordination and planning
-├── Capture Layer (Event Pipeline)  
-│   ├── InstrumentationRuntime - Lightweight event reporting
-│   ├── Ingestor - Fast event processing and validation
-│   ├── RingBuffer - Lock-free concurrent event storage
-│   └── PipelineManager - Async processing coordination
-├── Storage Layer (Data Management)
-│   ├── DataAccess - ETS-based storage with indexing
-│   ├── EventCorrelator - Cross-event relationship tracking
-│   └── AsyncWriter - Background persistence
-└── Integration Layer (Framework Support)
-    ├── Phoenix - Request/response lifecycle  
-    ├── LiveView - Mount, events, state changes
-    ├── GenServer - Callback and state monitoring
-    └── Distributed - Node coordination
-```
-
-## 🚧 Roadmap
-
-### Phase 2: AST Transformation Engine (In Progress)
-- [ ] Compile-time code instrumentation
-- [ ] Mix compiler integration
-- [ ] Semantic preservation testing
-
-### Phase 3: Advanced AI Features
-- [ ] LLM integration for intelligent analysis
-- [ ] Predictive instrumentation planning
-- [ ] Anomaly detection and root cause analysis
-
-### Phase 4: Time-Travel Debugging UI
-- [ ] Web-based execution timeline interface
-- [ ] Multi-dimensional event visualization  
-- [ ] Interactive debugging session management
-
-## 🏆 Key Achievements
-
-### 🎯 Foundation Complete (2024)
-- ✅ **Zero Compilation Warnings**: Clean production build achieved
-- ✅ **325 Comprehensive Tests**: Complete test coverage with 0 failures
-- ✅ **Sub-Microsecond Performance**: Event capture <1µs target achieved
-- ✅ **24x Batch Optimization**: Performance optimization breakthrough
-- ✅ **Production Error Handling**: Robust error recovery and resilience
-- ✅ **Cross-Framework Integration**: Phoenix, LiveView, GenServer, Ecto support
-- ✅ **Distributed Intelligence**: Node coordination and event synchronization
-- ✅ **AI-Driven Analysis**: Complete code analysis and instrumentation planning
-
-### 🚀 Technical Excellence
-- **Architecture**: Clean 7-layer separation of concerns
-- **Performance**: Lock-free concurrent data structures  
-- **Quality**: Test-driven development with comprehensive coverage
-- **Production**: Real-world error scenarios handled gracefully
-- **Innovation**: AI-guided debugging - first of its kind
-
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
-
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality  
-4. Ensure all tests pass
-5. Submit a pull request
-
-## 📄 License
-
-ElixirScope is released under the MIT License. See [LICENSE](LICENSE) for details.
-
-## 🙏 Acknowledgments
-
-Built with ❤️ for the Elixir community. Special thanks to:
-
-- The BEAM team for the incredible runtime
-- The Elixir core team for the beautiful language
-- The Phoenix team for the inspiring framework architecture
-- The open source community for continuous innovation
-
-## 🤖 **LLM Provider Integration**
-
-ElixirScope includes a sophisticated multi-provider LLM integration for AI-powered code analysis. The system supports multiple providers with automatic fallback and unified API.
-
-### **Supported Providers**
-
-#### **🔹 Vertex AI (Google Cloud)** - *Primary Provider*
-- **Authentication**: Service Account JSON file
-- **Models**: Gemini 1.5 Flash, Gemini 1.5 Pro
-- **Features**: Enterprise-grade security, quota management, detailed logging
-
-#### **🔹 Gemini API (Google AI)** - *Alternative Provider*  
-- **Authentication**: API Key
-- **Models**: Gemini 1.5 Flash, Gemini 1.5 Pro
-- **Features**: Simple setup, direct API access
-
-#### **🔹 Mock Provider** - *Fallback Provider*
-- **Authentication**: None required
-- **Features**: Testing, development, offline usage
-
-### **Configuration**
-
-#### **Environment Variables (Recommended)**
-
-```bash
-# Vertex AI Configuration (Primary)
-export VERTEX_JSON_FILE="/path/to/service-account.json"
-export VERTEX_DEFAULT_MODEL="gemini-2.0-flash"  # Optional
-export LLM_PROVIDER="vertex"  # Optional, auto-detected
-
-# Gemini API Configuration (Alternative)
-export GEMINI_API_KEY="your-gemini-api-key"
-export GEMINI_DEFAULT_MODEL="gemini-2.0-flash"  # Optional
-export LLM_PROVIDER="gemini"  # Optional, auto-detected
-
-# General Configuration
-export LLM_TIMEOUT="30000"  # Optional, 30 seconds default
-```
-
-#### **Application Configuration**
-
-```elixir
-# config/config.exs
-config :elixir_scope,
-  # Vertex AI
-  vertex_json_file: "/path/to/service-account.json",
-  vertex_model: "gemini-2.0-flash",
-  
-  # Gemini API  
-  gemini_api_key: "your-api-key",
-  gemini_model: "gemini-2.0-flash",
-  
-  # Provider selection
-  llm_provider: :vertex,  # :vertex, :gemini, or :mock
-  llm_timeout: 30_000
-```
-
-### **Provider Selection Logic**
-
-ElixirScope automatically selects the best available provider:
-
-1. **Explicit Configuration**: If `LLM_PROVIDER` is set, use that provider
-2. **Auto-Detection Priority**:
-   - ✅ **Vertex AI** (if `VERTEX_JSON_FILE` exists and is valid)
-   - ✅ **Gemini API** (if `GEMINI_API_KEY` is set)
-   - ✅ **Mock Provider** (always available as fallback)
-
-### **Service Account Setup (Vertex AI)**
-
-1. **Create Service Account**:
-   ```bash
-   gcloud iam service-accounts create elixir-scope-ai \
-     --description="ElixirScope AI Analysis" \
-     --display-name="ElixirScope AI"
-   ```
-
-2. **Grant Permissions**:
-   ```bash
-   gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
-     --member="serviceAccount:elixir-scope-ai@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
-     --role="roles/aiplatform.user"
-   ```
-
-3. **Download Credentials**:
-   ```bash
-   gcloud iam service-accounts keys create ~/elixir-scope-vertex.json \
-     --iam-account=elixir-scope-ai@YOUR_PROJECT_ID.iam.gserviceaccount.com
-   ```
-
-4. **Configure ElixirScope**:
-   ```bash
-   export VERTEX_JSON_FILE="$HOME/elixir-scope-vertex.json"
-   ```
-
-### **Usage Examples**
-
-```elixir
-# Analyze code with automatic provider selection
-{:ok, analysis} = ElixirScope.AI.LLM.Client.analyze_code("""
-defmodule Calculator do
-  def add(a, b), do: a + b
-end
-""")
-
-# Explain an error
-{:ok, explanation} = ElixirScope.AI.LLM.Client.explain_error(
-  "** (CompileError) undefined function subtract/2"
-)
-
-# Get fix suggestions
-{:ok, suggestions} = ElixirScope.AI.LLM.Client.suggest_fix(
-  "Function is too complex with nested case statements"
-)
-
-# Check provider status
-status = ElixirScope.AI.LLM.Client.get_provider_status()
-# => %{
-#   primary_provider: :vertex,
-#   fallback_provider: :mock,
-#   vertex_configured: true,
-#   gemini_configured: false,
-#   mock_available: true
-# }
-```
-
-### **Development Approach**
-
-Our LLM integration follows a **simple, environment-variable-only approach** during development:
-
-- ✅ **No complex configuration files** - just environment variables
-- ✅ **Auto-detection** - works out of the box when credentials are available  
-- ✅ **Graceful fallback** - always works with mock provider
-- ✅ **Security-first** - credentials never logged or exposed
-- ✅ **Test-friendly** - comprehensive test suite with live API tests
-
-This approach prioritizes **developer experience** and **production readiness** over configuration complexity.
+-   **Total Behavioral Recall**: Capture comprehensive execution history.
+-   **AI-Driven Guidance**: Intelligent instrumentation planning and analysis.
+-   **Compile-Time Granularity**: Access local variables, trace expressions, and inject custom logic with precision.
+-   **Runtime Flexibility**: Dynamically trace modules, functions, or processes without recompilation, ideal for live systems.
+-   **Time-Travel Debugging**: Navigate through your application's execution history.
+-   **Multi-Dimensional Analysis**: Correlate events across time, processes, state, and performance.
 
 ---
 
-**ElixirScope**: Making Elixir debugging as elegant as the language itself. ✨ **Foundation Complete** ✨ 
+## 🚀 Current Status & Focus
+
+ElixirScope is evolving! We have successfully:
+
+1.  **Built a Production-Ready Runtime Tracing Foundation**: This system leverages BEAM's built-in primitives (`:dbg`, `:erlang.trace`, `:sys.install`) for dynamic, low-overhead tracing. (See `CURSOR_REVAMP_DEBUG_PLAN.md` & `PROGRESS_SUMMARY.md` for details on this completed phase).
+2.  **Integrating Compile-Time AST Instrumentation**: We are now merging and enhancing our powerful compile-time AST transformation capabilities to work alongside the runtime system. This effort (tracked in `AST_MERGE_CURSOR.md`) aims to provide unparalleled debugging depth when needed.
+
+This unified approach means ElixirScope will offer:
+-   **Runtime Tracing** as the default for broad, dynamic observability and production debugging.
+-   **Compile-Time AST Instrumentation** as an opt-in or AI-suggested mechanism for deep dives into specific code paths, capturing local variables, and enabling expression-level tracing during development and advanced debugging scenarios.
+
+---
+
+## 🏗️ Unified Architecture: The Best of Both Worlds
+
+ElixirScope's revamped architecture intelligently combines compile-time and runtime tracing, directing data into a unified capture, processing, and storage pipeline.
+
+### Key Architectural Principles:
+
+*   **Intelligent Mode Selection**: An AI-driven orchestrator (or user configuration) determines the optimal tracing strategy—runtime, compile-time, or a hybrid—for a given debugging goal or application context.
+*   **Convergent Data Pipeline**: Events from both runtime tracers and AST-injected calls flow through the same high-performance `Ingestor` -> `RingBuffer` -> `AsyncWriterPool` -> `EventCorrelator` -> `DataAccess` pipeline. This ensures consistent processing and correlation.
+*   **Distinct Control Planes**: Runtime tracing is controlled dynamically via the `ElixirScope.Runtime` API. Compile-time instrumentation is managed via AI-generated plans fed into a `Mix.Tasks.Compile.ElixirScope` task and the `ElixirScope.AST.Transformer`.
+*   **Unified Querying**: The goal is for `ElixirScope.Storage.QueryCoordinator` (and the future "Execution Cinema" UI) to present a single, coherent view of all captured data, regardless of its origin.
+
+### Architectural Diagrams
+
+#### 1. High-Level Unified Tracing Architecture
+
+This diagram illustrates how both compile-time AST instrumentation and runtime tracing contribute to ElixirScope's data capture.
+
+```mermaid
+graph TD
+    subgraph "User/Developer Interaction"
+        User["User/Developer"]
+        IDE["IDE / IEx"]
+    end
+
+    subgraph "AI & Orchestration Layer"
+        Orchestrator["ElixirScope.AI.Orchestrator"]
+        CodeAnalyzer["AI.CodeAnalyzer"]
+        InstrumentationPlanner["AI.InstrumentationPlanner"]
+
+        Orchestrator --> CodeAnalyzer
+        Orchestrator --> InstrumentationPlanner
+    end
+
+    subgraph "Compile-Time Instrumentation Path"
+        MixTask["Mix.Tasks.Compile.ElixirScope"]
+        ASTTransformer["AST.Transformer"]
+        InstrumentedCode["Instrumented Application Code (AST)"]
+
+        InstrumentationPlanner -- "AST Plan" --> MixTask
+        MixTask --> ASTTransformer
+        ASTTransformer -- "Transforms" --> InstrumentedCode
+    end
+
+    subgraph "Runtime Tracing Path"
+        RuntimeAPI["ElixirScope.Runtime API"]
+        RuntimeController["Runtime.Controller"]
+        TracerManager["Runtime.TracerManager<br>(:dbg, :erlang.trace)"]
+        StateMonitorManager["Runtime.StateMonitorManager<br>(:sys.install)"]
+        LiveApp["Live Application Code (BEAM)"]
+
+        InstrumentationPlanner -- "Runtime Plan" --> RuntimeController
+        IDE -- "Dynamic Commands" --> RuntimeAPI
+        RuntimeAPI --> RuntimeController
+        RuntimeController --> TracerManager
+        RuntimeController --> StateMonitorManager
+        TracerManager -- "Traces" --> LiveApp
+        StateMonitorManager -- "Monitors" --> LiveApp
+    end
+
+    subgraph "Shared Event Capture & Processing Pipeline"
+        CaptureRuntime["Capture.InstrumentationRuntime<br>(Called by InstrumentedCode)"]
+        Ingestor["Capture.Ingestor"]
+        RingBuffer["Capture.RingBuffer"]
+        AsyncProcessing["AsyncWriterPool & EventCorrelator"]
+        Storage["Storage.DataAccess (ETS)"]
+        QueryCoordinator["Storage.QueryCoordinator (Future)"]
+        CinemaUI["Execution Cinema UI (Future)"]
+
+        InstrumentedCode -- "AST Events" --> CaptureRuntime
+        CaptureRuntime -- "Formatted Events" --> Ingestor
+        TracerManager -- "Runtime Events" --> Ingestor
+        StateMonitorManager -- "Runtime Events" --> Ingestor
+        Ingestor --> RingBuffer
+        RingBuffer --> AsyncProcessing
+        AsyncProcessing --> Storage
+        Storage --> QueryCoordinator
+        QueryCoordinator --> CinemaUI
+    end
+
+    User --> IDE
+    IDE -- "Analysis Requests" --> Orchestrator
+
+    classDef ai fill:#e1f5fe,stroke:#333,color:#000
+    classDef compile_time fill:#fce4ec,stroke:#333,color:#000
+    classDef runtime fill:#e8eaf6,stroke:#333,color:#000
+    classDef shared_pipeline fill:#e8f5e9,stroke:#333,color:#000
+
+    class Orchestrator,CodeAnalyzer,InstrumentationPlanner ai;
+    class MixTask,ASTTransformer,InstrumentedCode compile_time;
+    class RuntimeAPI,RuntimeController,TracerManager,StateMonitorManager,LiveApp runtime;
+    class CaptureRuntime,Ingestor,RingBuffer,AsyncProcessing,Storage,QueryCoordinator,CinemaUI shared_pipeline;
+```
+
+#### 2. Convergent Data Flow
+
+This diagram emphasizes the two distinct data sources feeding into the common ElixirScope backend.
+
+```mermaid
+graph LR
+    subgraph "Source: Compile-Time AST Instrumentation"
+        A["User's Original Code"] -- "mix compile" --> B["ElixirScope.Compiler.MixTask + AST.Transformer"]
+        B --> C["Instrumented Code (.beam files)"]
+        C -- "Execution" --> D["Calls to ElixirScope.Capture.InstrumentationRuntime"]
+    end
+
+    subgraph "Source: Runtime Tracing"
+        E["Live Application (.beam files)"] -- "Dynamic Trace Request" --> F["ElixirScope.Runtime.Controller"]
+        F --> G["Runtime.Tracer / Runtime.StateMonitor"]
+        G -- "BEAM Tracing Primitives<br>(:dbg, :sys.install)" --> H["Raw Trace Messages"]
+    end
+
+    subgraph "ElixirScope Backend (Shared)"
+        I["ElixirScope.Capture.Ingestor"]
+        J["ElixirScope.Capture.RingBuffer"]
+        K["AsyncWriterPool + EventCorrelator"]
+        L["ElixirScope.Storage.DataAccess (ETS)"]
+        M["Query API / Execution Cinema UI (Future)"]
+
+        D -- "Formatted AST Events" --> I
+        H -- "Formatted Runtime Events" --> I
+        I --> J
+        J --> K
+        K --> L
+        L --> M
+    end
+
+    classDef compile_src fill:#fce4ec,stroke:#333,color:#000
+    classDef runtime_src fill:#e8eaf6,stroke:#333,color:#000
+    classDef backend fill:#e8f5e9,stroke:#333,color:#000
+
+    class A,B,C,D compile_src;
+    class E,F,G,H runtime_src;
+    class I,J,K,L,M backend;
+```
+
+---
+
+## 🚀 Getting Started (Conceptual)
+
+As we integrate both tracing mechanisms, the setup will involve:
+
+1.  **Dependency**: Add `elixir_scope` to your `mix.exs`.
+2.  **Compiler (for AST-based features)**: Register `ElixirScope.Compiler.MixTask` in your `mix.exs`:
+    ```elixir
+    def project do
+      [
+        # ...
+        compilers: [:elixir_scope | Mix.compilers()]
+        # ...
+      ]
+    end
+    ```
+3.  **Application Start**: Add `ElixirScope` to your application's supervision tree.
+    ```elixir
+    # In your application.ex
+    children = [
+      # ... other children
+      {ElixirScope, strategy: :hybrid_default} # Example strategy
+    ]
+    ```
+4.  **Configuration (`config/config.exs`)**:
+    ```elixir
+    config :elixir_scope,
+      # Unified settings
+      unified_tracing: [
+        default_mode_for_dev: :hybrid, # :runtime, :compile_time, :hybrid, :auto
+        default_mode_for_prod: :runtime,
+        # ... other unified settings ...
+      ],
+      # Runtime specific settings
+      runtime_tracing: [
+        default_trace_flags: [:call, :return_to, :send, :receive, :timestamp],
+        # ... other runtime settings ...
+      ],
+      # Compile-time specific settings
+      compile_time_tracing: [
+        default_instrumentation_level: :function_boundaries, # :expressions, :locals
+        # ... other compile-time settings ...
+      ],
+      ai: [
+        planning: [
+          default_strategy: :balanced # This will influence both runtime and AST plans
+        ]
+      ]
+      # ... other existing ElixirScope configs ...
+    ```
+
+---
+
+## 🛠️ Usage Examples (Conceptual for Unified System)
+
+### Using the Unified API
+
+```elixir
+# Start tracing with ElixirScope deciding the best mode (runtime, AST, or hybrid)
+{:ok, trace_ref} = ElixirScope.Unified.trace(MyModule.MyFunctions, level: :detailed)
+
+# Request deep, granular tracing for a specific function (likely to use AST)
+{:ok, granular_ref} = ElixirScope.Unified.trace({MyModule, :complex_function, 2},
+  granularity: :locals_and_expressions, # Hint for AST
+  capture_locals: [:important_var1, :important_var2],
+  trace_lines: [42, 55]
+)
+
+# Explicitly use runtime tracing for a live PID
+{:ok, runtime_pid_ref} = ElixirScope.Unified.trace(some_pid, force_runtime: true, include: [:messages])
+
+# Stop a trace
+ElixirScope.Unified.stop_trace(trace_ref)
+```
+
+### Accessing Combined Trace Data (via IEx Helpers - Future)
+
+```iex
+# Shows a combined, interleaved history for the PID, tagging event sources
+iex> ElixirScope.IExHelpers.history(some_pid)
+...
+[<ts1>] [RUNTIME] CALL MyModule.foo/1 (Args: [123])
+[<ts2>] [AST]     LINE 10 MyModule.foo/1: local_var_x = 456
+[<ts3>] [RUNTIME]   SEND from <0.123.0> to <0.124.0>: {:work_item, ...}
+[<ts4>] [AST]     LINE 15 MyModule.foo/1: another_var = 789
+[<ts5>] [RUNTIME] EXIT MyModule.foo/1 (Return: :ok)
+...
+
+# Inspect state, including AST-captured locals, at a point in time
+iex> ElixirScope.IExHelpers.inspect_state_at(some_pid, specific_event_id_or_timestamp)
+State for PID <0.123.0> at <timestamp>:
+  GenServer State: %{...}
+  Active Call: MyModule.foo/1
+    Local Variables (from AST):
+      local_var_x: 456
+      another_var: 789
+    Arguments (from Runtime/AST): [123]
+```
+
+---
+
+## 🧪 Testing ElixirScope
+
+ElixirScope employs a comprehensive testing strategy, including unit, integration, live API, compliance, and focused test suites. The goal is to ensure reliability, performance, and correctness across all features and supported environments.
+
+### Key Test Commands
+
+The following `mix test.*` aliases are available for convenient testing (details in `mix.exs`):
+
+*   `mix test.trace`: Runs the main test suite with detailed output (excludes live API calls).
+*   `mix test.fast`: Runs a fast, parallelized version of the main test suite.
+*   `mix test.mock`: Tests only the mock LLM provider (very fast, no API calls).
+*   `mix test.gemini`: Runs Gemini LLM provider live API tests (requires `GOOGLE_API_KEY`).
+*   `mix test.vertex`: Runs Vertex AI LLM provider live API tests (requires `VERTEX_JSON_FILE`).
+*   `mix test.llm`: Runs all LLM component tests *excluding* live API calls.
+*   `mix test.llm.live`: Runs all LLM component tests *including* live API calls.
+*   `mix test.live`: Runs *only* live API tests for all configured providers.
+*   `mix test.all`: Runs *all* tests, including all live API tests.
+
+### Standard Test Execution
+
+*   **Default (CI & Local):** `mix test` or `mix test.trace`
+    *   Runs all tests except those tagged `:live_api`.
+    *   Uses mock LLM providers by default, ensuring tests pass without external dependencies or API keys.
+*   **With Coverage:** `mix test --cover`
+
+### Running Live API Tests
+
+To run tests that make actual calls to LLM APIs (Gemini, Vertex AI):
+
+1.  **Set up Credentials:**
+    *   **Vertex AI:** Export `VERTEX_JSON_FILE="/path/to/your/service-account.json"`
+    *   **Gemini API:** Export `GOOGLE_API_KEY="your-gemini-api-key"`
+2.  **Run Specific Live Tests:**
+    *   `mix test.gemini`
+    *   `mix test.vertex`
+    *   `mix test.live` (for all configured live providers)
+    *   `mix test.all` (for everything)
+
+**Note:** Live API tests are tagged with `:live_api` and are excluded by default to ensure the main test suite can run in any environment without requiring credentials.
+
+### Test Environment Variables
+
+*   `VERTEX_JSON_FILE`: Path to Vertex AI service account credentials.
+*   `VERTEX_DEFAULT_MODEL`: Vertex model to use for tests (e.g., "gemini-1.5-pro").
+*   `GOOGLE_API_KEY`: API key for Gemini.
+*   `GEMINI_DEFAULT_MODEL`: Gemini model to use for tests.
+*   `LLM_PROVIDER`: Can force a specific provider (`mock`, `gemini`, `vertex`). Defaults to auto-detection or mock in test env.
+*   `LLM_TIMEOUT`: API request timeout in milliseconds.
+
+For more details on testing, refer to `TEST_CURSOR.md`.
+
+---
+
+## 🗺️ Roadmap
+
+With the runtime tracing foundation complete and AST instrumentation being integrated, our roadmap includes:
+
+1.  **Phase 1 (Unified Tracing Core - In Progress):**
+    *   Fully integrate AST transformation with the runtime event pipeline.
+    *   Implement the `ElixirScope.Unified` API and `Hybrid.TracingEngine`.
+    *   Solidify event correlation for hybrid traces.
+    *   Develop basic `IExHelpers` for unified data viewing.
+2.  **Phase 2 (Advanced AI & Execution Cinema UI - Next):**
+    *   Develop the "Execution Cinema" web interface for visual time-travel debugging.
+    *   Enhance `AI.Orchestrator` with more sophisticated planning for both runtime and AST.
+    *   Implement advanced AI analysis features on the captured data (anomaly detection, root cause hints).
+    *   Build out the full `QueryCoordinator` for complex data retrieval.
+3.  **Phase 3 (Production Hardening & Advanced Features):**
+    *   Robust distributed tracing and correlation.
+    *   Warm/cold storage solutions for long-term data.
+    *   Deeper LLM integration for explanations and suggestions.
+    *   ElixirLS integration.
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our `CONTRIBUTING.md` (to be created) for guidelines.
+
+1.  Fork the repository.
+2.  Create a feature branch (`git checkout -b feature/YourFeature`).
+3.  Add tests for new functionality.
+4.  Ensure all tests pass (`mix test.all` if you have credentials, otherwise `mix test.trace`).
+5.  Commit your changes (`git commit -am 'Add some feature'`).
+6.  Push to the branch (`git push origin feature/YourFeature`).
+7.  Create a new Pull Request.
+
+---
+
+## 📄 License
+
+ElixirScope is released under the MIT License. See the `LICENSE` file for details.
