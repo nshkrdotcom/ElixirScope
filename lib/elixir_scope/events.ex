@@ -65,7 +65,11 @@ defmodule ElixirScope.Events do
       :call_id,          # Unique call identifier for matching entry/exit
       :caller_module,    # Calling module (if available)
       :caller_function,  # Calling function (if available)
-      :caller_line       # Calling line number (if available)
+      :caller_line,      # Calling line number (if available)
+      :pid,              # PID of the process (for runtime tracing)
+      :correlation_id,   # Correlation ID for linking events
+      :timestamp,        # High-resolution timestamp
+      :wall_time         # Wall clock time
     ]
   end
 
@@ -79,7 +83,11 @@ defmodule ElixirScope.Events do
       :call_id,          # Matching call identifier from entry
       :result,           # Return value or exception (may be truncated)
       :duration_ns,      # Function execution time in nanoseconds
-      :exit_reason       # :normal, :exception, :error, :exit, :throw
+      :exit_reason,      # :normal, :exception, :error, :exit, :throw
+      :pid,              # PID of the process (for runtime tracing)
+      :correlation_id,   # Correlation ID for linking events
+      :timestamp,        # High-resolution timestamp
+      :wall_time         # Wall clock time
     ]
   end
 
@@ -122,7 +130,12 @@ defmodule ElixirScope.Events do
       :exit_reason,      # Exit reason
       :lifetime_ns,      # Process lifetime in nanoseconds
       :message_count,    # Total messages processed (if available)
-      :final_state       # Final process state (if available, may be truncated)
+      :final_state,      # Final process state (if available, may be truncated)
+      :pid,              # PID of the process (alias for exited_pid, for runtime tracing)
+      :reason,           # Exit reason (alias for exit_reason, for runtime tracing)
+      :correlation_id,   # Correlation ID for linking events
+      :timestamp,        # High-resolution timestamp
+      :wall_time         # Wall clock time
     ]
   end
 
@@ -171,6 +184,33 @@ defmodule ElixirScope.Events do
     ]
   end
 
+  # Alias for compatibility with runtime tracing code
+  defmodule MessageReceived do
+    @moduledoc "Alias for MessageReceive for runtime tracing compatibility"
+    
+    defstruct [
+      :pid,              # PID of the receiving process
+      :message,          # Message content (may be truncated)
+      :correlation_id,   # Correlation ID for linking events
+      :timestamp,        # High-resolution timestamp
+      :wall_time         # Wall clock time
+    ]
+  end
+
+  # Alias for compatibility with runtime tracing code  
+  defmodule MessageSent do
+    @moduledoc "Alias for MessageSend for runtime tracing compatibility"
+    
+    defstruct [
+      :from_pid,         # PID of the sending process
+      :to_pid,           # PID of the receiving process
+      :message,          # Message content (may be truncated)
+      :correlation_id,   # Correlation ID for linking events
+      :timestamp,        # High-resolution timestamp
+      :wall_time         # Wall clock time
+    ]
+  end
+
   #############################################################################
   # State Change Events
   #############################################################################
@@ -185,7 +225,49 @@ defmodule ElixirScope.Events do
       :new_state,        # New state (may be truncated)
       :state_diff,       # Diff between old and new state (if computed)
       :trigger_message,  # Message that triggered the change (if applicable)
-      :trigger_call_id   # Call ID that triggered the change (if applicable)
+      :trigger_call_id,  # Call ID that triggered the change (if applicable)
+      :pid,              # PID of the process (alias for server_pid, for runtime tracing)
+      :correlation_id,   # Correlation ID for linking events
+      :timestamp,        # High-resolution timestamp
+      :wall_time         # Wall clock time
+    ]
+  end
+
+  defmodule StateSnapshot do
+    @moduledoc "Event fired for periodic state snapshots during time-travel debugging"
+    
+    defstruct [
+      :server_pid,       # PID of the GenServer
+      :snapshot_id,      # Unique identifier for this snapshot
+      :state,            # Complete state at this point in time
+      :checkpoint_type,  # :periodic, :manual, :before_call, :after_call
+      :sequence_number,  # Sequence number for ordering snapshots
+      :memory_usage,     # Memory usage of the process at snapshot time
+      :message_queue_len,# Length of message queue at snapshot time
+      :pid,              # PID of the process (alias for server_pid, for runtime tracing)
+      :session_id,       # Time-travel session ID
+      :correlation_id,   # Correlation ID for linking events
+      :timestamp,        # High-resolution timestamp
+      :wall_time         # Wall clock time
+    ]
+  end
+
+  defmodule CallbackReply do
+    @moduledoc "Event fired when a GenServer callback returns a reply"
+    
+    defstruct [
+      :server_pid,       # PID of the GenServer
+      :callback,         # Callback that generated the reply
+      :call_id,          # ID of the original call
+      :reply,            # Reply value (may be truncated)
+      :new_state,        # New state after callback (may be truncated)
+      :timeout,          # Timeout value if set
+      :hibernate,        # Whether process should hibernate
+      :continue_data,    # Data for handle_continue if set
+      :pid,              # PID of the process (alias for server_pid, for runtime tracing)
+      :correlation_id,   # Correlation ID for linking events
+      :timestamp,        # High-resolution timestamp
+      :wall_time         # Wall clock time
     ]
   end
 
