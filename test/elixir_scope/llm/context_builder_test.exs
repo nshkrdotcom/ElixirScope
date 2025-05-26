@@ -4,8 +4,9 @@ defmodule ElixirScope.LLM.ContextBuilderTest do
   
   @moduletag :skip
 
-  alias ElixirScope.LLM.ContextBuilder
-  alias ElixirScope.ASTRepository
+  # TODO: Add aliases when implementing actual tests
+  # alias ElixirScope.LLM.ContextBuilder
+  # alias ElixirScope.ASTRepository
 
   describe "hybrid context building performance" do
     test "builds hybrid context under 100ms for medium projects" do

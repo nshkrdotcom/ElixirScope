@@ -4,8 +4,9 @@ defmodule ElixirScope.Capture.InstrumentationRuntimeIntegrationTest do
   
   @moduletag :skip
 
-  alias ElixirScope.Capture.InstrumentationRuntime
-  alias ElixirScope.ASTRepository.RuntimeCorrelator
+  # TODO: Add aliases when implementing actual tests
+  # alias ElixirScope.Capture.InstrumentationRuntime
+  # alias ElixirScope.ASTRepository.RuntimeCorrelator
 
   describe "end-to-end AST correlation flow" do
     test "AST-instrumented code generates properly correlated events" do

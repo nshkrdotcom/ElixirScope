@@ -2,7 +2,9 @@ defmodule ElixirScope.Capture.InstrumentationRuntimeEnhancedTest do
   use ExUnit.Case, async: true
   
   alias ElixirScope.Capture.InstrumentationRuntime
-  alias ElixirScope.Capture.{RingBuffer, Ingestor}
+  alias ElixirScope.Capture.RingBuffer
+  # TODO: Add Ingestor alias when implementing actual tests
+  # alias ElixirScope.Capture.Ingestor
   
   @moduletag :capture
 
@@ -25,7 +27,7 @@ defmodule ElixirScope.Capture.InstrumentationRuntimeEnhancedTest do
   end
 
   describe "report_ast_function_entry_with_node_id/5" do
-    test "should report function entry with AST node correlation", %{buffer: buffer} do
+    test "should report function entry with AST node correlation", %{buffer: _buffer} do
       correlation_id = {System.monotonic_time(:nanosecond), self(), make_ref()}
       ast_node_id = "TestModule:test_function:10:function_def"
       

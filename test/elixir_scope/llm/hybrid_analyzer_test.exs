@@ -4,7 +4,8 @@ defmodule ElixirScope.LLM.HybridAnalyzerTest do
   
   @moduletag :skip
 
-  alias ElixirScope.LLM.HybridAnalyzer
+  # TODO: Add alias when implementing actual tests
+  # alias ElixirScope.LLM.HybridAnalyzer
 
   describe "hybrid analysis accuracy improvements" do
     test "LLM responses are 40%+ more accurate with hybrid context" do
