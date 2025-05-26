@@ -9,7 +9,7 @@ This document provides visual diagrams showing how ElixirScope components fit to
 ## 🏗️ **1. CURRENT SYSTEM ARCHITECTURE**
 
 ```mermaid
-graph TB
+graph LR
     subgraph "🟢 STABLE RUNTIME LAYER (100% Working)"
         RT[Runtime Controller]
         TM[Tracer Manager] 
