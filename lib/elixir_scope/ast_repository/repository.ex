@@ -20,7 +20,7 @@ defmodule ElixirScope.ASTRepository.Repository do
   alias ElixirScope.Config
   alias ElixirScope.Storage.DataAccess
   alias ElixirScope.Utils
-  alias ElixirScope.ASTRepository.{ModuleData, FunctionData, RuntimeCorrelator}
+  alias ElixirScope.ASTRepository.{ModuleData, FunctionData}
   
   @type repository_id :: binary()
   @type module_name :: atom()

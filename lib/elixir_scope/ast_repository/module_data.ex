@@ -238,7 +238,88 @@ defmodule ElixirScope.ASTRepository.ModuleData do
   
   defp extract_callbacks(ast) do
     # Extract OTP callback implementations
-    []  # TODO: Implement callback detection
+    case ast do
+      {:defmodule, _, [_name, [do: body]]} ->
+        extract_callback_functions(body)
+      _ ->
+        []
+    end
+  end
+  
+  defp extract_callback_functions({:__block__, _, statements}) do
+    statements
+    |> Enum.filter(&is_callback_function?/1)
+    |> Enum.map(&extract_callback_info/1)
+    |> Enum.reject(&is_nil/1)
+  end
+  
+  defp extract_callback_functions(statement) do
+    if is_callback_function?(statement) do
+      case extract_callback_info(statement) do
+        nil -> []
+        callback -> [callback]
+      end
+    else
+      []
+    end
+  end
+  
+  defp is_callback_function?({:def, _, [{name, _, args} | _]}) do
+    arity = if is_list(args), do: length(args), else: 0
+    
+    # Common OTP callbacks
+    case {name, arity} do
+      {:init, 1} -> true
+      {:handle_call, 3} -> true
+      {:handle_cast, 2} -> true
+      {:handle_info, 2} -> true
+      {:terminate, 2} -> true
+      {:code_change, 3} -> true
+      {:handle_continue, 2} -> true
+      # Phoenix LiveView callbacks
+      {:mount, 3} -> true
+      {:handle_event, 3} -> true
+      {:handle_params, 3} -> true
+      {:render, 1} -> true
+      # Phoenix Controller callbacks
+      {:action, 2} -> true
+      # Task callbacks
+      {:run, 1} -> true
+      _ -> false
+    end
+  end
+  
+  defp is_callback_function?(_), do: false
+  
+  defp extract_callback_info({:def, _, [{name, _, args} | _]}) do
+    arity = if is_list(args), do: length(args), else: 0
+    
+    %{
+      name: name,
+      arity: arity,
+      type: determine_callback_type(name, arity)
+    }
+  end
+  
+  defp extract_callback_info(_), do: nil
+  
+  defp determine_callback_type(name, arity) do
+    case {name, arity} do
+      {:init, 1} -> :genserver
+      {:handle_call, 3} -> :genserver
+      {:handle_cast, 2} -> :genserver
+      {:handle_info, 2} -> :genserver
+      {:terminate, 2} -> :genserver
+      {:code_change, 3} -> :genserver
+      {:handle_continue, 2} -> :genserver
+      {:mount, 3} -> :live_view
+      {:handle_event, 3} -> :live_view
+      {:handle_params, 3} -> :live_view
+      {:render, 1} -> :live_view
+      {:action, 2} -> :controller
+      {:run, 1} -> :task
+      _ -> :unknown
+    end
   end
   
   defp detect_patterns(ast) do
@@ -254,29 +335,244 @@ defmodule ElixirScope.ASTRepository.ModuleData do
   
   defp extract_attributes(ast) do
     # Extract module attributes
-    []  # TODO: Implement attribute extraction
+    case ast do
+      {:defmodule, _, [_name, [do: body]]} ->
+        extract_attribute_statements(body)
+      _ ->
+        []
+    end
+  end
+  
+  defp extract_attribute_statements({:__block__, _, statements}) do
+    statements
+    |> Enum.filter(&is_attribute_statement?/1)
+    |> Enum.map(&extract_attribute_info/1)
+    |> Enum.reject(&is_nil/1)
+  end
+  
+  defp extract_attribute_statements(statement) do
+    if is_attribute_statement?(statement) do
+      case extract_attribute_info(statement) do
+        nil -> []
+        attribute -> [attribute]
+      end
+    else
+      []
+    end
+  end
+  
+  defp is_attribute_statement?({:@, _, [{name, _, _}]}) when is_atom(name) do
+    true
+  end
+  
+  defp is_attribute_statement?(_), do: false
+  
+  defp extract_attribute_info({:@, _, [{name, _, [value]}]}) do
+    %{
+      name: name,
+      value: value,
+      type: determine_attribute_type(name)
+    }
+  end
+  
+  defp extract_attribute_info({:@, _, [{name, _, _}]}) do
+    %{
+      name: name,
+      value: nil,
+      type: determine_attribute_type(name)
+    }
+  end
+  
+  defp extract_attribute_info(_), do: nil
+  
+  defp determine_attribute_type(name) do
+    case name do
+      :moduledoc -> :documentation
+      :doc -> :documentation
+      :behaviour -> :behaviour
+      :behavior -> :behaviour  # American spelling
+      :impl -> :implementation
+      :spec -> :typespec
+      :type -> :typespec
+      :typep -> :typespec
+      :opaque -> :typespec
+      :callback -> :callback
+      :macrocallback -> :callback
+      :optional_callbacks -> :callback
+      :derive -> :protocol
+      :protocol -> :protocol
+      :fallback_to_any -> :protocol
+      _ -> :custom
+    end
   end
   
   # Helper functions for AST analysis
-  defp has_use_directive?(ast, module) do
+  defp has_use_directive?(ast, target_module) do
     # Check if AST contains a use directive for the given module
-    false  # TODO: Implement use directive detection
+    case ast do
+      {:defmodule, _, [_name, [do: body]]} ->
+        find_use_directive(body, target_module)
+      _ ->
+        false
+    end
   end
+  
+  defp find_use_directive({:__block__, _, statements}, target_module) do
+    Enum.any?(statements, &check_use_statement(&1, target_module))
+  end
+  
+  defp find_use_directive(statement, target_module) do
+    check_use_statement(statement, target_module)
+  end
+  
+  defp check_use_statement({:use, _, [{:__aliases__, _, modules}]}, target_module) do
+    # In AST, modules appear as atoms like :GenServer
+    # But target_module is the full module name like Elixir.GenServer
+    # We need to compare the last part of the module name
+    ast_module = List.last(modules)
+    target_atom = case target_module do
+      atom when is_atom(atom) ->
+        # Convert Elixir.GenServer to :GenServer for comparison
+        atom |> Module.split() |> List.last() |> String.to_atom()
+      _ -> target_module
+    end
+    ast_module == target_atom
+  end
+  
+  defp check_use_statement({:use, _, [module]}, target_module) when is_atom(module) do
+    module == target_module
+  end
+  
+  defp check_use_statement(_, _), do: false
   
   defp has_phoenix_controller_pattern?(ast) do
     # Check for Phoenix controller patterns
-    false  # TODO: Implement Phoenix controller detection
+    case ast do
+      {:defmodule, _, [_name, [do: body]]} ->
+        has_controller_use_directive?(body) or has_controller_functions?(body)
+      _ ->
+        false
+    end
   end
+  
+  defp has_controller_use_directive?({:__block__, _, statements}) do
+    Enum.any?(statements, &is_controller_use_statement?/1)
+  end
+  
+  defp has_controller_use_directive?(statement) do
+    is_controller_use_statement?(statement)
+  end
+  
+  defp is_controller_use_statement?({:use, _, [{:__aliases__, _, modules}]}) do
+    # Check for patterns like "use MyApp.Web, :controller" or "use Phoenix.Controller"
+    case modules do
+      [_, "Web"] -> true  # MyApp.Web pattern
+      ["Phoenix", "Controller"] -> true
+      _ -> false
+    end
+  end
+  
+  defp is_controller_use_statement?({:use, _, [module, :controller]}) when is_atom(module) do
+    true
+  end
+  
+  defp is_controller_use_statement?(_), do: false
+  
+  defp has_controller_functions?({:__block__, _, statements}) do
+    Enum.any?(statements, &is_controller_function?/1)
+  end
+  
+  defp has_controller_functions?(statement) do
+    is_controller_function?(statement)
+  end
+  
+  defp is_controller_function?({:def, _, [{name, _, _} | _]}) when name in [:index, :show, :new, :create, :edit, :update, :delete] do
+    true
+  end
+  
+  defp is_controller_function?(_), do: false
   
   defp has_phoenix_live_view_pattern?(ast) do
     # Check for Phoenix LiveView patterns
-    false  # TODO: Implement Phoenix LiveView detection
+    case ast do
+      {:defmodule, _, [_name, [do: body]]} ->
+        has_live_view_use_directive?(body) or has_live_view_functions?(body)
+      _ ->
+        false
+    end
   end
+  
+  defp has_live_view_use_directive?({:__block__, _, statements}) do
+    Enum.any?(statements, &is_live_view_use_statement?/1)
+  end
+  
+  defp has_live_view_use_directive?(statement) do
+    is_live_view_use_statement?(statement)
+  end
+  
+  defp is_live_view_use_statement?({:use, _, [{:__aliases__, _, modules}]}) do
+    case modules do
+      ["Phoenix", "LiveView"] -> true
+      [_, "Web", "LiveView"] -> true  # MyApp.Web.LiveView pattern
+      _ -> false
+    end
+  end
+  
+  defp is_live_view_use_statement?(_), do: false
+  
+  defp has_live_view_functions?({:__block__, _, statements}) do
+    Enum.any?(statements, &is_live_view_function?/1)
+  end
+  
+  defp has_live_view_functions?(statement) do
+    is_live_view_function?(statement)
+  end
+  
+  defp is_live_view_function?({:def, _, [{name, _, _} | _]}) when name in [:mount, :handle_event, :handle_info, :handle_params, :render] do
+    true
+  end
+  
+  defp is_live_view_function?(_), do: false
   
   defp has_ecto_schema_pattern?(ast) do
     # Check for Ecto schema patterns
-    false  # TODO: Implement Ecto schema detection
+    case ast do
+      {:defmodule, _, [_name, [do: body]]} ->
+        has_ecto_use_directive?(body) or has_schema_definition?(body)
+      _ ->
+        false
+    end
   end
+  
+  defp has_ecto_use_directive?({:__block__, _, statements}) do
+    Enum.any?(statements, &is_ecto_use_statement?/1)
+  end
+  
+  defp has_ecto_use_directive?(statement) do
+    is_ecto_use_statement?(statement)
+  end
+  
+  defp is_ecto_use_statement?({:use, _, [{:__aliases__, _, modules}]}) do
+    case modules do
+      ["Ecto", "Schema"] -> true
+      [_, "Schema"] -> true  # MyApp.Schema pattern
+      _ -> false
+    end
+  end
+  
+  defp is_ecto_use_statement?(_), do: false
+  
+  defp has_schema_definition?({:__block__, _, statements}) do
+    Enum.any?(statements, &is_schema_statement?/1)
+  end
+  
+  defp has_schema_definition?(statement) do
+    is_schema_statement?(statement)
+  end
+  
+  defp is_schema_statement?({:schema, _, _}), do: true
+  defp is_schema_statement?({:embedded_schema, _, _}), do: true
+  defp is_schema_statement?(_), do: false
   
   defp count_decision_points(_ast) do
     # Count if/case/cond/try statements for cyclomatic complexity
@@ -331,8 +627,100 @@ defmodule ElixirScope.ASTRepository.ModuleData do
   defp maybe_add_pattern(patterns, pattern, true), do: [pattern | patterns]
   defp maybe_add_pattern(patterns, _pattern, false), do: patterns
   
-  defp has_singleton_pattern?(_ast), do: false
-  defp has_factory_pattern?(_ast), do: false
-  defp has_observer_pattern?(_ast), do: false
-  defp has_state_machine_pattern?(_ast), do: false
+  defp has_singleton_pattern?(ast) do
+    # Basic singleton pattern detection - look for single instance creation
+    case ast do
+      {:defmodule, _, [_name, [do: body]]} ->
+        has_singleton_indicators?(body)
+      _ ->
+        false
+    end
+  end
+  
+  defp has_factory_pattern?(ast) do
+    # Basic factory pattern detection - look for create/build functions
+    case ast do
+      {:defmodule, _, [_name, [do: body]]} ->
+        has_factory_indicators?(body)
+      _ ->
+        false
+    end
+  end
+  
+  defp has_observer_pattern?(ast) do
+    # Basic observer pattern detection - look for notify/subscribe functions
+    case ast do
+      {:defmodule, _, [_name, [do: body]]} ->
+        has_observer_indicators?(body)
+      _ ->
+        false
+    end
+  end
+  
+  defp has_state_machine_pattern?(ast) do
+    # Basic state machine pattern detection - look for state transitions
+    case ast do
+      {:defmodule, _, [_name, [do: body]]} ->
+        has_state_machine_indicators?(body)
+      _ ->
+        false
+    end
+  end
+  
+  # Helper functions for pattern detection
+  defp has_singleton_indicators?({:__block__, _, statements}) do
+    Enum.any?(statements, &is_singleton_function?/1)
+  end
+  
+  defp has_singleton_indicators?(statement) do
+    is_singleton_function?(statement)
+  end
+  
+  defp is_singleton_function?({:def, _, [{name, _, _} | _]}) when name in [:instance, :get_instance, :singleton] do
+    true
+  end
+  
+  defp is_singleton_function?(_), do: false
+  
+  defp has_factory_indicators?({:__block__, _, statements}) do
+    Enum.any?(statements, &is_factory_function?/1)
+  end
+  
+  defp has_factory_indicators?(statement) do
+    is_factory_function?(statement)
+  end
+  
+  defp is_factory_function?({:def, _, [{name, _, _} | _]}) when name in [:create, :build, :make, :new] do
+    true
+  end
+  
+  defp is_factory_function?(_), do: false
+  
+  defp has_observer_indicators?({:__block__, _, statements}) do
+    Enum.any?(statements, &is_observer_function?/1)
+  end
+  
+  defp has_observer_indicators?(statement) do
+    is_observer_function?(statement)
+  end
+  
+  defp is_observer_function?({:def, _, [{name, _, _} | _]}) when name in [:notify, :subscribe, :unsubscribe, :add_observer, :remove_observer] do
+    true
+  end
+  
+  defp is_observer_function?(_), do: false
+  
+  defp has_state_machine_indicators?({:__block__, _, statements}) do
+    Enum.any?(statements, &is_state_machine_function?/1)
+  end
+  
+  defp has_state_machine_indicators?(statement) do
+    is_state_machine_function?(statement)
+  end
+  
+  defp is_state_machine_function?({:def, _, [{name, _, _} | _]}) when name in [:transition, :change_state, :next_state, :current_state] do
+    true
+  end
+  
+  defp is_state_machine_function?(_), do: false
 end 

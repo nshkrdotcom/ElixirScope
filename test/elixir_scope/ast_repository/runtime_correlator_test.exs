@@ -4,8 +4,9 @@ defmodule ElixirScope.ASTRepository.RuntimeCorrelatorTest do
   
   @moduletag :skip
 
-  alias ElixirScope.ASTRepository.RuntimeCorrelator
-  alias ElixirScope.TestSupport.{Fixtures, EventSimulator}
+  # TODO: Add aliases when implementing actual tests
+  # alias ElixirScope.ASTRepository.RuntimeCorrelator
+  # alias ElixirScope.TestSupport.{Fixtures, EventSimulator}
 
   describe "AST-Runtime correlation accuracy" do
     test "correlates function entry events to AST nodes with 99%+ accuracy" do

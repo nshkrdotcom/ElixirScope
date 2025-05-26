@@ -154,8 +154,7 @@ Follow the testing patterns from existing tests like:
 Include the test cases specified in CURSOR_BIGBOY_ENHANCED_testsAndImplPlan.md section "Week 1 Detailed Daily Plan".
 ```
 
-#### **Prompt 3: Enhance InstrumentationRuntime** ✅ **COMPLETED**
-```
+
 ✅ SUCCESSFULLY COMPLETED - All 25 tests passing!
 
 Enhanced lib/elixir_scope/capture/instrumentation_runtime.ex with AST correlation support while maintaining 100% backward compatibility.
@@ -201,7 +200,24 @@ IMPLEMENTED FEATURES:
   - Production-ready with comprehensive error handling
   - Seamless integration with existing ElixirScope infrastructure
 
-NEXT: Ready for Prompt 4 - Runtime Correlation Bridge
+NEXT: Ready for Prompt 3 - Runtime Correlation Bridge
+
+
+#### **Prompt 3: Enhance InstrumentationRuntime** ✅ **COMPLETED**
+```
+Enhance lib/elixir_scope/capture/instrumentation_runtime.ex to support AST correlation while maintaining 100% backward compatibility.
+
+Requirements:
+- Add new functions for AST-correlated events (report_ast_function_entry, report_ast_variable_snapshot)
+- Enhance existing functions to optionally include AST metadata
+- Maintain all existing functionality unchanged
+- Use existing event processing pipeline
+- Add correlation metadata to events without breaking existing event consumers
+- Performance impact <10% of existing capture overhead
+
+DO NOT modify existing function signatures. ADD new functions alongside existing ones.
+
+Reference the enhancement patterns shown in CURSOR_CODE_MAPPING.md section "Data Capture Pipeline Enhancement".
 ```
 
 ### **Day 2: Runtime Correlation Bridge**

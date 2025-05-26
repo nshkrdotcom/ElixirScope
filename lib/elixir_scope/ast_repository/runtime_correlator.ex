@@ -18,7 +18,6 @@ defmodule ElixirScope.ASTRepository.RuntimeCorrelator do
   alias ElixirScope.Utils
   alias ElixirScope.Storage.DataAccess
   alias ElixirScope.ASTRepository.Repository
-  alias ElixirScope.Events
   
   @type correlation_id :: binary()
   @type ast_node_id :: binary()
@@ -339,7 +338,7 @@ defmodule ElixirScope.ASTRepository.RuntimeCorrelator do
     end
   end
   
-  defp get_correlated_events_impl(state, ast_node_id) do
+  defp get_correlated_events_impl(_state, _ast_node_id) do
     # Query events that have been correlated with this AST node
     try do
       # Use the correlation query function from DataAccess

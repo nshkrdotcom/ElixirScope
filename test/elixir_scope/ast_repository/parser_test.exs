@@ -5,7 +5,8 @@ defmodule ElixirScope.ASTRepository.ParserTest do
   
   @moduletag :skip
 
-  alias ElixirScope.ASTRepository.Parser
+  # TODO: Add alias when implementing actual tests
+  # alias ElixirScope.ASTRepository.Parser
 
   describe "AST parsing with instrumentation mapping" do
     test "assigns unique node IDs to instrumentable AST nodes" do
@@ -49,15 +50,17 @@ defmodule ElixirScope.ASTRepository.ParserTest do
     end
   end
 
-  property "parser preserves AST semantics while adding metadata" do
-    # TODO: Implement when Parser is ready
-    # check all source_code <- Generators.valid_elixir_code() do
-    #   {:ok, original_ast} = Code.string_to_quoted(source_code)
-    #   {:ok, parsed} = Parser.parse_with_instrumentation_mapping(source_code)
-    #   # Invariant: Original AST structure preserved (ignoring our metadata)
-    #   cleaned_ast = Parser.remove_instrumentation_metadata(parsed.ast)
-    #   assert ast_equivalent?(original_ast, cleaned_ast)
-    # end
-    assert true # Placeholder
-  end
+  # TODO: Re-enable when Parser is ready and ExUnitProperties is updated
+  # @tag :skip
+  # property "parser preserves AST semantics while adding metadata" do
+  #   # TODO: Implement when Parser is ready
+  #   # check all source_code <- Generators.valid_elixir_code() do
+  #   #   {:ok, original_ast} = Code.string_to_quoted(source_code)
+  #   #   {:ok, parsed} = Parser.parse_with_instrumentation_mapping(source_code)
+  #   #   # Invariant: Original AST structure preserved (ignoring our metadata)
+  #   #   cleaned_ast = Parser.remove_instrumentation_metadata(parsed.ast)
+  #   #   assert ast_equivalent?(original_ast, cleaned_ast)
+  #   # end
+  #   assert true # Placeholder
+  # end
 end
