@@ -128,7 +128,7 @@ graph TD
 This diagram emphasizes the two distinct data sources feeding into the common ElixirScope backend.
 
 ```mermaid
-graph LR
+graph TD
     subgraph "Source: Compile-Time AST Instrumentation"
         A["User's Original Code"] -- "mix compile" --> B["ElixirScope.Compiler.MixTask + AST.Transformer"]
         B --> C["Instrumented Code (.beam files)"]

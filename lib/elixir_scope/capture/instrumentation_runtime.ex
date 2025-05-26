@@ -148,6 +148,149 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
   end
 
   @doc """
+  Reports a local variable snapshot (AST-specific).
+  
+  This is called by AST-injected code to capture local variable values
+  at specific points in function execution.
+  """
+  @spec report_local_variable_snapshot(correlation_id(), map(), non_neg_integer(), atom()) :: :ok
+  def report_local_variable_snapshot(correlation_id, variables, line, source \\ :ast) do
+    case get_context() do
+      %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
+        Ingestor.ingest_generic_event(
+          buffer,
+          :local_variable_snapshot,
+          %{
+            variables: variables,
+            line: line,
+            correlation_id: correlation_id
+          },
+          self(),
+          correlation_id,
+          System.monotonic_time(:nanosecond),
+          System.system_time(:nanosecond)
+        )
+        
+      _ ->
+        :ok
+    end
+  end
+
+  @doc """
+  Reports an expression value (AST-specific).
+  
+  This is called by AST-injected code to capture the value of specific
+  expressions during execution.
+  """
+  @spec report_expression_value(correlation_id(), String.t(), term(), non_neg_integer(), atom()) :: :ok
+  def report_expression_value(correlation_id, expression, value, line, source \\ :ast) do
+    case get_context() do
+      %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
+        Ingestor.ingest_generic_event(
+          buffer,
+          :expression_value,
+          %{
+            expression: expression,
+            value: value,
+            line: line,
+            correlation_id: correlation_id
+          },
+          self(),
+          correlation_id,
+          System.monotonic_time(:nanosecond),
+          System.system_time(:nanosecond)
+        )
+        
+      _ ->
+        :ok
+    end
+  end
+
+  @doc """
+  Reports line execution (AST-specific).
+  
+  This is called by AST-injected code to mark execution of specific lines.
+  """
+  @spec report_line_execution(correlation_id(), non_neg_integer(), map(), atom()) :: :ok
+  def report_line_execution(correlation_id, line, context, source \\ :ast) do
+    case get_context() do
+      %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
+        Ingestor.ingest_generic_event(
+          buffer,
+          :line_execution,
+          %{
+            line: line,
+            context: context,
+            correlation_id: correlation_id
+          },
+          self(),
+          correlation_id,
+          System.monotonic_time(:nanosecond),
+          System.system_time(:nanosecond)
+        )
+        
+      _ ->
+        :ok
+    end
+  end
+
+  @doc """
+  Reports AST function entry with source tagging.
+  
+  This is similar to report_function_entry but specifically for AST-injected calls.
+  """
+  @spec report_ast_function_entry(module(), atom(), list(), correlation_id()) :: :ok
+  def report_ast_function_entry(module, function, args, correlation_id) do
+    case get_context() do
+      %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
+        Ingestor.ingest_generic_event(
+          buffer,
+          :function_entry,
+          %{
+            module: module,
+            function: function,
+            arity: length(args),
+            args: args,
+            source: :ast
+          },
+          self(),
+          correlation_id,
+          System.monotonic_time(:nanosecond),
+          System.system_time(:nanosecond)
+        )
+        
+      _ ->
+        :ok
+    end
+  end
+
+  @doc """
+  Reports AST function exit with source tagging.
+  """
+  @spec report_ast_function_exit(correlation_id(), term(), non_neg_integer()) :: :ok
+  def report_ast_function_exit(correlation_id, return_value, duration_ns) do
+    case get_context() do
+      %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
+        Ingestor.ingest_generic_event(
+          buffer,
+          :function_exit,
+          %{
+            return_value: return_value,
+            duration_ns: duration_ns,
+            source: :ast
+          },
+          self(),
+          correlation_id,
+          System.monotonic_time(:nanosecond),
+          System.system_time(:nanosecond)
+        )
+        
+      _ ->
+        :ok
+    end
+  end
+
+  @doc """
   Initializes the instrumentation context for the current process.
   
   This should be called when a process starts or when ElixirScope is enabled.

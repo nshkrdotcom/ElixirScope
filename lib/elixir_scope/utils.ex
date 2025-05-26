@@ -120,22 +120,10 @@ defmodule ElixirScope.Utils do
   end
 
   @doc """
-  Generates a correlation ID for linking related events.
-  
-  Correlation IDs are used to group related events together,
-  such as all events within a single request or operation.
-  
-  ## Examples
-  
-      iex> corr_id = ElixirScope.Utils.generate_correlation_id()
-      iex> is_binary(corr_id)
-      true
+  Generates a unique correlation ID for tracing events.
   """
   def generate_correlation_id do
-    # Generate a UUID v4 for correlation
-    :crypto.strong_rand_bytes(16)
-    |> Base.encode16(case: :lower)
-    |> String.replace(~r/(.{8})(.{4})(.{4})(.{4})(.{12})/, "\\1-\\2-\\3-\\4-\\5")
+    :erlang.unique_integer([:positive, :monotonic])
   end
 
   @doc """

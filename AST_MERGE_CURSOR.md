@@ -990,11 +990,13 @@ end
 ## 📋 **Implementation Progress Checklist**
 
 ### **🏗️ Foundation Phase (Step 1-2)**
-- [ ] **AST Infrastructure Restoration** (Step 1)
-  - [ ] Core modules restored from pre-df3b905a commit
-  - [ ] AST components modernized for unified system
-  - [ ] CompileTime.Orchestrator implemented
-  - [ ] Event source tagging and correlation IDs added
+- [ ] **AST Infrastructure Restoration** (Step 1) - 🚧 IN PROGRESS
+  - [x] Core modules restored from pre-df3b905a commit
+  - [x] Enhanced AST transformer created with granular capabilities
+  - [x] CompileTime.Orchestrator implemented
+  - [x] Event source tagging and correlation IDs added
+  - [ ] AST components integration with base transformer fixed
+  - [ ] Tests passing for enhanced AST functionality
 - [ ] **Unified API Implementation** (Step 2)  
   - [ ] ElixirScope.Unified module created
   - [ ] Mode selection logic implemented
