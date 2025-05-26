@@ -282,6 +282,9 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
   def report_ast_function_entry(module, function, args, correlation_id) do
     case get_context() do
       %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
+        # Push to call stack for nested tracking (enhanced for AST correlation)
+        push_call_stack(correlation_id)
+        
         Ingestor.ingest_generic_event(
           buffer,
           :function_entry,
@@ -797,9 +800,17 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
   @spec validate_ast_node_id(String.t()) :: {:ok, String.t()} | {:error, atom()}
   def validate_ast_node_id(ast_node_id) when is_binary(ast_node_id) do
     # AST node IDs should follow format: "module:function:line:node_type"
+    # Must have exactly 3 colons and 4 parts, no other separators allowed
     case String.split(ast_node_id, ":") do
-      [_module, _function, _line, _node_type] -> {:ok, ast_node_id}
-      _ -> {:error, :invalid_format}
+      [module, function, line, node_type] when module != "" and function != "" and line != "" and node_type != "" ->
+        # Verify no invalid characters (like hyphens) in the parts
+        if String.contains?(ast_node_id, "-") do
+          {:error, :invalid_format}
+        else
+          {:ok, ast_node_id}
+        end
+      _ -> 
+        {:error, :invalid_format}
     end
   end
   def validate_ast_node_id(_), do: {:error, :not_string}
