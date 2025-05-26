@@ -1,73 +1,8 @@
 I'll create a comprehensive set of Mermaid diagrams to visualize the ElixirScope implementation architecture and flows.
 
-## 1. Overall System Architecture
-
-```mermaid
-graph LR
-    subgraph "Application Layer"
-        API[ElixirScope Public API]
-        RT[InstrumentationRuntime]
-    end
-    
-    subgraph "Layer 1: Capture Pipeline"
-        RB[RingBuffer<br/>Lock-free Event Storage]
-        ING[Ingestor<br/>Event Processing]
-        PM[PipelineManager<br/>Supervisor]
-    end
-    
-    subgraph "Layer 2: Async Processing"
-        AWP[AsyncWriterPool<br/>Worker Management]
-        AW1[AsyncWriter 1]
-        AW2[AsyncWriter 2]
-        AWN[AsyncWriter N]
-        EC[EventCorrelator<br/>Causal Analysis]
-    end
-    
-    subgraph "Storage Layer"
-        DA[DataAccess<br/>ETS Tables]
-        PI[Primary Index]
-        TI[Temporal Index]
-        PRI[Process Index]
-        FI[Function Index]
-        CI[Correlation Index]
-    end
-    
-    subgraph "Core Components"
-        CFG[Config Server]
-        UTIL[Utils]
-        EVT[Events]
-    end
-    
-    API --> RT
-    RT --> ING
-    ING --> RB
-    PM --> AWP
-    PM --> EC
-    AWP --> AW1
-    AWP --> AW2
-    AWP --> AWN
-    AW1 --> RB
-    AW2 --> RB
-    AWN --> RB
-    EC --> DA
-    DA --> PI
-    DA --> TI
-    DA --> PRI
-    DA --> FI
-    DA --> CI
-    
-    API --> CFG
-    RT --> UTIL
-    ING --> EVT
-    
-    style RB fill:#ff9999,color:#000
-    style ING fill:#ff9999,color:#000
-    style AWP fill:#99ccff,color:#000
-    style EC fill:#99ccff,color:#000
-    style DA fill:#99ff99,color:#000
-```
-
 ## 2. Event Flow Sequence
+
+> **Note:** Primarily runtime flow; needs to include AST instrumentation path via `Capture.InstrumentationRuntime`.
 
 ```mermaid
 sequenceDiagram
@@ -135,38 +70,6 @@ graph LR
     
     style WP fill:#ffcccc,color:#000
     style RP fill:#ccffcc,color:#000
-```
-
-## 4. Event Correlation State Machine
-
-```mermaid
-stateDiagram-v2
-    [*] --> FunctionEntry: report_function_entry()
-    
-    FunctionEntry --> CallStackPush: Push correlation_id
-    CallStackPush --> ActiveCall: Store metadata
-    
-    ActiveCall --> NestedEntry: Nested function call
-    ActiveCall --> FunctionExit: report_function_exit()
-    
-    NestedEntry --> CallStackPush: Push child correlation
-    
-    FunctionExit --> CallStackPop: Pop correlation_id
-    CallStackPop --> CompleteCorrelation: Link entry/exit
-    
-    CompleteCorrelation --> [*]
-    
-    [*] --> MessageSend: report_message_send()
-    MessageSend --> MessageRegistry: Register signature
-    
-    MessageRegistry --> MessageReceive: Matching receive
-    MessageReceive --> CorrelatedMessage: Link send/receive
-    
-    CorrelatedMessage --> [*]
-    
-    ActiveCall --> Cleanup: TTL expired
-    MessageRegistry --> Cleanup: TTL expired
-    Cleanup --> [*]
 ```
 
 ## 5. AsyncWriterPool Work Distribution
@@ -344,6 +247,8 @@ graph LR
 
 ## 9. Performance Critical Path
 
+> **Note:** Focuses on runtime; needs to incorporate AST instrumentation path.
+
 ```mermaid
 graph TD
     subgraph "Hot Path (<1μs target)"
@@ -379,6 +284,8 @@ graph TD
 ```
 
 ## 10. Supervision Tree
+
+> **Note:** Shows a partial tree; should be integrated into a unified system supervision tree including runtime/AST control.
 
 ```mermaid
 graph TD

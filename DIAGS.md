@@ -8,6 +8,8 @@ Here's the first set of diagrams representing the **current state** of ElixirSco
 
 This diagram shows the main components of ElixirScope with its runtime tracing primary mechanism.
 
+> **Note:** Does not show its place within the unified architecture or the compile-time AST instrumentation path.
+
 ```mermaid
 graph TD
     subgraph "User/Developer Interaction"
@@ -120,6 +122,8 @@ graph TD
 
 This diagram details how AI analyzes code and translates that into runtime tracing commands.
 
+> **Note:** Focuses only on runtime; should incorporate AI planning for AST instrumentation.
+
 ```mermaid
 flowchart TD
     A[Project Codebase] --> B{AI.CodeAnalyzer};
@@ -151,6 +155,8 @@ flowchart TD
 ### 3. Runtime Event Capture Pipeline (from BEAM to Ingestor)
 
 Focuses on how events sourced from BEAM's tracing mechanisms are captured.
+
+> **Note:** Accurate for runtime path, but needs to show the convergent path from AST instrumentation via `Capture.InstrumentationRuntime`.
 
 ```mermaid
 graph LR

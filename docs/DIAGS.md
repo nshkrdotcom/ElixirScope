@@ -1,97 +1,8 @@
 # ElixirScope System Architecture Diagrams
 
-## 1. Overall System Architecture
-
-```mermaid
-graph TB
-    subgraph "Development Environment"
-        IDE[IDE/Editor]
-        ElixirLS[ElixirLS DAP]
-        Mix[Mix Build Process]
-    end
-
-    subgraph "ElixirScope Core System"
-        subgraph "Layer 0: AI Intelligence"
-            CA[CodeAnalyzer]
-            IP[InstrumentationPlanner]
-            AO[AI.Orchestrator]
-        end
-
-        subgraph "Layer 1: Auto-Instrumentation"
-            MT[Compiler.MixTask]
-            AST[AST.Transformer]
-            IH[InjectorHelpers]
-        end
-
-        subgraph "Layer 2: Event Capture Pipeline"
-            IR[InstrumentationRuntime]
-            VT[VMTracer]
-            EI[EventIngestor]
-            RB[RingBuffer]
-        end
-
-        subgraph "Layer 3: Processing & Storage"
-            AWP[AsyncWriterPool]
-            EC[EventCorrelator]
-            DA[DataAccess]
-            QC[QueryCoordinator]
-        end
-
-        subgraph "Layer 4: Analysis & Visualization"
-            AE[AI.AnalysisEngine]
-            CUI[CinemaUI]
-            TW[Tidewave Integration]
-        end
-    end
-
-    subgraph "Target Application"
-        APP[Elixir Application]
-        GS[GenServers]
-        SUP[Supervisors]
-        PHXL[Phoenix/LiveView]
-    end
-
-    %% Connections
-    Mix --> MT
-    MT --> AST
-    AST --> APP
-    
-    CA --> IP
-    IP --> MT
-    AO --> CA
-    
-    APP --> IR
-    APP --> VT
-    IR --> EI
-    VT --> EI
-    EI --> RB
-    
-    RB --> AWP
-    AWP --> EC
-    EC --> DA
-    DA --> QC
-    
-    QC --> AE
-    QC --> CUI
-    AE --> CUI
-    CUI --> TW
-    
-    IDE --> ElixirLS
-    ElixirLS -.-> QC
-    CUI -.-> ElixirLS
-
-    classDef ai fill:#e1f5fe
-    classDef capture fill:#f3e5f5
-    classDef storage fill:#e8f5e8
-    classDef ui fill:#fff3e0
-    
-    class CA,IP,AO,AE ai
-    class IR,VT,EI,RB capture
-    class AWP,EC,DA,QC storage
-    class CUI,TW ui
-```
-
 ## 2. AI-Driven Instrumentation Flow
+
+> **Note:** Focuses on AST transformation; should be integrated with runtime path selection as per unified architecture.
 
 ```mermaid
 flowchart TD
@@ -139,6 +50,8 @@ flowchart TD
 ```
 
 ## 3. Event Capture Pipeline
+
+> **Note:** Needs to clearly show the convergent flow from both AST and Runtime sources into the shared Ingestor.
 
 ```mermaid
 graph LR
@@ -287,6 +200,8 @@ graph TB
 ```
 
 ## 5. Event Data Model (ERD)
+
+> **Note:** Clarify if this is a future QueryCoordinator schema; current primary event model is simpler (see DIAGS.md #5).
 
 ```mermaid
 erDiagram
@@ -571,6 +486,8 @@ graph TB
 ```
 
 ## 8. Phase Implementation Roadmap
+
+> **Note:** Gantt chart dates (2025-2027) are past/future-dated; needs to reflect current unified architecture progress.
 
 ```mermaid
 gantt
