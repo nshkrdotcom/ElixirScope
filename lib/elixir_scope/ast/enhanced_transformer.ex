@@ -1,12 +1,11 @@
 defmodule ElixirScope.AST.EnhancedTransformer do
   @moduledoc """
-  Enhanced AST transformer with runtime integration and granular instrumentation.
+  Enhanced AST transformer for granular compile-time instrumentation.
   
   Provides "Cinema Data" - rich, detailed execution traces including:
   - Local variable capture at specific lines
   - Expression-level value tracking  
   - Custom debugging logic injection
-  - Runtime system coordination
   """
 
   # Note: These aliases will be used when full integration is implemented

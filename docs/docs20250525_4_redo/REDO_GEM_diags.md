@@ -16,7 +16,7 @@ Since I can't execute code or dynamically analyze dependencies from the provided
 This diagram shows the main groupings of modules and how they generally relate.
 
 ```mermaid
-graph TD
+graph LR
     subgraph "A. Core & Config"
         Config["ElixirScope.Config"]
         Utils["ElixirScope.Utils"]
@@ -84,49 +84,49 @@ graph TD
     ElixirScopeApp["ElixirScope.Application"]
 
     %% Core Dependencies
-    Utils --> Config; % Utils might be used by Config for some init
+    Utils --> Config;
     Events --> Utils;
 
     %% AI Dependencies
     AI_Orchestrator --> AI_CodeAnalyzer;
     AI_CodeAnalyzer --> AI_PatternRecognizer;
     AI_CodeAnalyzer --> AI_ComplexityAnalyzer;
-    AI_Orchestrator --> Storage_DataAccess; % For plans
+    AI_Orchestrator --> Storage_DataAccess;
     AI_LLM_Client --> AI_LLM_Config["AI.LLM.Config"];
     AI_LLM_Client --> AI_LLM_Providers["AI.LLM.Providers.*"];
-    AI_CodeAnalyzer --> AI_LLM_Client; % Implied if LLM is used for analysis
+    AI_CodeAnalyzer --> AI_LLM_Client;
     AI_Predictive --> Utils;
-    AI_IntelligentAnalyzer --> Utils; % Implied
+    AI_IntelligentAnalyzer --> Utils;
 
     %% Compile-Time Dependencies
     CT_Orchestrator --> AI_CodeAnalyzer;
     CT_Orchestrator --> Utils;
-    Mix_Compile_ElixirScope --> CT_Orchestrator; % Conceptually, could be AI_Orchestrator too
+    Mix_Compile_ElixirScope --> CT_Orchestrator;
     Mix_Compile_ElixirScope --> AST_Transformer;
-    Mix_Compile_ElixirScope --> Storage_DataAccess; % For plans via Orchestrator
+    Mix_Compile_ElixirScope --> Storage_DataAccess;
     AST_Transformer --> AST_InjectorHelpers;
-    AST_EnhancedTransformer --> AST_InjectorHelpers; % and AST.Transformer
-    AST_EnhancedTransformer --> Cap_InstrumentationRuntime; % For report_local_variable_snapshot etc.
+    AST_EnhancedTransformer --> AST_InjectorHelpers;
+    AST_EnhancedTransformer --> Cap_InstrumentationRuntime;
     AST_EnhancedTransformer --> Utils;
-    AST_InjectorHelpers --> Cap_InstrumentationRuntime; % Injecting calls
+    AST_InjectorHelpers --> Cap_InstrumentationRuntime;
 
     %% Runtime Dependencies
     RT_API --> RT_Controller;
     RT_Controller --> RT_TracerManager;
     RT_Controller --> RT_StateMonitorManager;
-    RT_Controller --> AI_Orchestrator; % For runtime plans
+    RT_Controller --> AI_Orchestrator;
     RT_Controller --> Utils;
     RT_TracerManager --> RT_Tracer;
-    RT_TracerManager --> Cap_Ingestor; % For getting buffer
-    RT_Tracer --> Cap_Ingestor; % For sending events
+    RT_TracerManager --> Cap_Ingestor;
+    RT_Tracer --> Cap_Ingestor;
     RT_Tracer --> Events;
     RT_StateMonitorManager --> RT_StateMonitor;
-    RT_StateMonitorManager --> Cap_Ingestor; % For buffer
-    RT_StateMonitor --> Cap_Ingestor; % For events
+    RT_StateMonitorManager --> Cap_Ingestor;
+    RT_StateMonitor --> Cap_Ingestor;
     RT_StateMonitor --> Events;
-    RT_Safety --> RT_API; % For emergency stop, via controller
-    RT_Safety --> RT_Sampling; % To adjust sampling
-    RT_Sampling --> Config; % Implied
+    RT_Safety --> RT_API;
+    RT_Safety --> RT_Sampling;
+    RT_Sampling --> Config;
 
     %% Capture Pipeline Dependencies
     Cap_InstrumentationRuntime --> Events;
@@ -137,16 +137,16 @@ graph TD
     Cap_Ingestor --> Utils;
     Cap_AsyncWriterPool --> Cap_AsyncWriter;
     Cap_AsyncWriter --> Cap_RingBuffer;
-    Cap_AsyncWriter --> Utils; % For timestamps
+    Cap_AsyncWriter --> Utils;
     Cap_EventCorrelator --> Events;
     Cap_EventCorrelator --> Utils;
-    Cap_PipelineManager --> Cap_AsyncWriterPool; % Supervises
+    Cap_PipelineManager --> Cap_AsyncWriterPool;
 
     %% Storage Dependencies
     Storage_DataAccess --> Events;
     Storage_DataAccess --> Utils;
-    Cap_AsyncWriter --> Storage_DataAccess; % Or EventCorrelator does
-    Cap_EventCorrelator --> Storage_DataAccess; % To lookup/store correlation state
+    Cap_AsyncWriter --> Storage_DataAccess;
+    Cap_EventCorrelator --> Storage_DataAccess;
 
     %% Framework Integration Dependencies
     Phoenix_Integration --> Cap_InstrumentationRuntime;
@@ -155,42 +155,41 @@ graph TD
     %% Distributed Dependencies
     Dist_NodeCoordinator --> Dist_EventSynchronizer;
     Dist_NodeCoordinator --> Dist_GlobalClock;
-    Dist_NodeCoordinator --> Storage_DataAccess; % Implied for distributed queries
-    Dist_NodeCoordinator --> Cap_InstrumentationRuntime; % For node events
+    Dist_NodeCoordinator --> Storage_DataAccess;
+    Dist_NodeCoordinator --> Cap_InstrumentationRuntime;
     Dist_EventSynchronizer --> Storage_DataAccess;
     Dist_EventSynchronizer --> Dist_GlobalClock;
 
     %% Unified API Dependencies
-    Unified_API --> RT_API; % Delegates to Runtime
-    Unified_API --> CT_Orchestrator; % Potentially for AST mode
-    Unified_API --> Cap_EventCorrelator; % For session management?
+    Unified_API --> RT_API;
+    Unified_API --> CT_Orchestrator;
+    Unified_API --> Cap_EventCorrelator;
     Unified_API --> Utils;
 
     %% Application Dependencies
-    ElixirScopeApp --> Config; % Starts Config
-    ElixirScopeApp --> Cap_PipelineManager; % Example supervised child
-    ElixirScopeApp --> Storage_DataAccess; % Implicit if starting a default storage
-    % ... and other top-level services
+    ElixirScopeApp --> Config;
+    ElixirScopeApp --> Cap_PipelineManager;
+    ElixirScopeApp --> Storage_DataAccess;
 
-    classDef core fill:#f9f,stroke:#333,stroke-width:2px;
-    classDef ai fill:#ccf,stroke:#333,stroke-width:2px;
-    classDef compile_time fill:#fcf,stroke:#333,stroke-width:2px;
-    classDef runtime fill:#cff,stroke:#333,stroke-width:2px;
-    classDef capture fill:#ffc,stroke:#333,stroke-width:2px;
-    classDef storage fill:#fec,stroke:#333,stroke-width:2px;
-    classDef integration fill:#dfd,stroke:#333,stroke-width:2px;
-    classDef distributed fill:#ddd,stroke:#333,stroke-width:2px;
-    classDef unified fill:#eee,stroke:#333,stroke-width:2px;
+    classDef core fill:#f9f,stroke:#333,stroke-width:2px,color:#000;
+    classDef ai fill:#ccf,stroke:#333,stroke-width:2px,color:#000;
+    classDef compile_time fill:#fcf,stroke:#333,stroke-width:2px,color:#000;
+    classDef runtime fill:#cff,stroke:#333,stroke-width:2px,color:#000;
+    classDef capture fill:#ffc,stroke:#333,stroke-width:2px,color:#000;
+    classDef storage fill:#fec,stroke:#333,stroke-width:2px,color:#000;
+    classDef integration fill:#dfd,stroke:#333,stroke-width:2px,color:#000;
+    classDef distributed fill:#ddd,stroke:#333,stroke-width:2px,color:#000;
+    classDef unified fill:#eee,stroke:#333,stroke-width:2px,color:#000;
 
-    class Config,Utils,Events core;
-    class AI_Orchestrator,AI_CodeAnalyzer,AI_PatternRecognizer,AI_ComplexityAnalyzer,AI_LLM_Client,AI_LLM_Config,AI_LLM_Providers,AI_Predictive,AI_IntelligentAnalyzer ai;
-    class CT_Orchestrator,Mix_Compile_ElixirScope,AST_Transformer,AST_EnhancedTransformer,AST_InjectorHelpers compile_time;
-    class RT_API,RT_Controller,RT_TracerManager,RT_Tracer,RT_StateMonitorManager,RT_StateMonitor,RT_Safety,RT_Sampling,RT_Matchers runtime;
-    class Cap_InstrumentationRuntime,Cap_Ingestor,Cap_RingBuffer,Cap_AsyncWriterPool,Cap_AsyncWriter,Cap_EventCorrelator,Cap_PipelineManager capture;
-    class Storage_DataAccess storage;
-    class Phoenix_Integration integration;
-    class Dist_NodeCoordinator,Dist_EventSynchronizer,Dist_GlobalClock distributed;
-    class Unified_API unified;
+    class Config,Utils,Events core
+    class AI_Orchestrator,AI_CodeAnalyzer,AI_PatternRecognizer,AI_ComplexityAnalyzer,AI_LLM_Client,AI_LLM_Config,AI_LLM_Providers,AI_Predictive,AI_IntelligentAnalyzer ai
+    class CT_Orchestrator,Mix_Compile_ElixirScope,AST_Transformer,AST_EnhancedTransformer,AST_InjectorHelpers compile_time
+    class RT_API,RT_Controller,RT_TracerManager,RT_Tracer,RT_StateMonitorManager,RT_StateMonitor,RT_Safety,RT_Sampling,RT_Matchers runtime
+    class Cap_InstrumentationRuntime,Cap_Ingestor,Cap_RingBuffer,Cap_AsyncWriterPool,Cap_AsyncWriter,Cap_EventCorrelator,Cap_PipelineManager capture
+    class Storage_DataAccess storage
+    class Phoenix_Integration integration
+    class Dist_NodeCoordinator,Dist_EventSynchronizer,Dist_GlobalClock distributed
+    class Unified_API unified
 ```
 
 ---
@@ -223,15 +222,15 @@ graph TD
     end
 
     %% Data flow for dependencies
-    AST_InjectorHelpers --> CapRuntimeAPI; % Conceptually targets this API
+    AST_InjectorHelpers --> CapRuntimeAPI;
     AST_EnhancedTransformer --> CapRuntimeAPI;
     Mix_Compile_ElixirScope --> Storage_DataAccess["Storage.DataAccess (for plan)"]
 
     classDef planning fill:#cde4ff,stroke:#333,color:#000
     classDef compilation fill:#ffe4cd,stroke:#333,color:#000
 
-    class P1,P2,Plan planning;
-    class C1,C2,C3,AST_Orig,AST_Instrumented,SourceFile,InstrumentedFile,CapRuntimeAPI,C4,BeamFile,Storage_DataAccess compilation;
+    class P1,P2,Plan planning
+    class C1,C2,C3,AST_Orig,AST_Instrumented,SourceFile,InstrumentedFile,CapRuntimeAPI,C4,BeamFile,Storage_DataAccess compilation
 ```
 
 **Key Takeaways from Diagram 2:**
@@ -270,7 +269,6 @@ graph TD
     subgraph "Event Reporting from Runtime Tracers"
         C1 -- Sends Raw Trace Events --> D1[Capture.Ingestor]
         C2 -- Sends Raw State Events --> D1
-        %% Note: Events are formatted before Ingestor by Tracer/StateMonitor
     end
 
     %% Shared Component
@@ -280,9 +278,9 @@ graph TD
     classDef tracing_exec fill:#cff,stroke:#333,color:#000
     classDef event_reporting fill:#d4ffd4,stroke:#333,color:#000
 
-    class A1,A2,B1,B2,B3,B4,B5,AIO api_control;
-    class C1,C2,AppCode tracing_exec;
-    class D1,EventPipeline event_reporting;
+    class A1,A2,B1,B2,B3,B4,B5,AIO api_control
+    class C1,C2,AppCode tracing_exec
+    class D1,EventPipeline event_reporting
 ```
 **Key Takeaways from Diagram 3:**
 *   This path is significantly more complex due to dynamic control, safety, sampling, and managing BEAM tracing primitives directly.
@@ -308,12 +306,14 @@ graph TD
     end
 
     A7[Capture.PipelineManager] -- Supervises --> A3
-    A7 -- Supervises --> A5 % If EventCorrelator is a separate supervised process
+    A7 -- Supervises --> A5
 
     A6 --> Output["AI Analysis / Execution Cinema"]
 
-    classDef pipeline fill:#e8f5e9,stroke:#333,color:#000
-    class Input1,Input2,Output;
+    classDef pipeline fill:#e8f5e9,stroke:#333,color:#000;
+
+    class Input1,Input2,Output pipeline
+
     class A1,A2,A3,A4,A5,A6,A7 pipeline;
 ```
 

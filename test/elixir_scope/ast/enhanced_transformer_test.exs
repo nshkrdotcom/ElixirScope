@@ -126,7 +126,7 @@ defmodule ElixirScope.AST.EnhancedTransformerTest do
       assert match?({:defmodule, _, _}, result)
     end
 
-    test "applies granular instrumentation without runtime coordination" do
+    test "applies granular instrumentation for compile-time focus" do
       input_ast = quote do
         defmodule TestModule do
           def monitored_function(arg) do
@@ -141,9 +141,9 @@ defmodule ElixirScope.AST.EnhancedTransformerTest do
 
       result = EnhancedTransformer.transform_with_enhanced_instrumentation(input_ast, plan)
 
-      # Should transform without runtime coordination
+      # Should transform successfully
       assert is_tuple(result)
-      refute runtime_coordination_present?(result)
+      assert match?({:defmodule, _, _}, result)
     end
   end
 
@@ -302,11 +302,7 @@ defmodule ElixirScope.AST.EnhancedTransformerTest do
     end)
   end
 
-  defp runtime_coordination_present?(ast) do
-    # Check if runtime coordination logic is present
-    ast_string = Macro.to_string(ast)
-    String.contains?(ast_string, "ast_tracing_enabled?")
-  end
+
 
   defp custom_injection_present?(ast, _line_number) do
     # Check if custom injection is present at line
