@@ -59,28 +59,7 @@ defmodule ElixirScope.CompileTime.Orchestrator do
     generate_plan(target, enhanced_opts)
   end
 
-  @doc """
-  Generates a hybrid plan that coordinates runtime and compile-time tracing.
-  """
-  def generate_hybrid_plan(targets, opts \\ %{}) when is_list(targets) do
-    plans = Enum.map(targets, fn target ->
-      case determine_optimal_instrumentation(target, opts) do
-        :runtime -> {:runtime, target}
-        :compile_time -> {:compile_time, generate_plan(target, opts)}
-        :both -> {:hybrid, generate_plan(target, Map.put(opts, :coordinate_with_runtime, true))}
-      end
-    end)
-    
-    {:ok, %{
-      type: :hybrid,
-      targets: plans,
-      session_id: Utils.generate_correlation_id(),
-      coordination: %{
-        enable_cross_correlation: true,
-        shared_session_management: true
-      }
-    }}
-  end
+
 
   # Private functions
 
@@ -137,7 +116,7 @@ defmodule ElixirScope.CompileTime.Orchestrator do
       capture_locals: Map.get(opts, :capture_locals, []),
       trace_expressions: Map.get(opts, :trace_expressions, []),
       custom_injections: Map.get(opts, :custom_injections, []),
-      coordinate_with_runtime: Map.get(opts, :coordinate_with_runtime, false),
+
       analysis: analysis,
       created_at: System.monotonic_time(:nanosecond)
     }
@@ -263,16 +242,7 @@ defmodule ElixirScope.CompileTime.Orchestrator do
 
 
 
-  defp determine_optimal_instrumentation(_target, opts) do
-    # Simple heuristics for now - can be enhanced with AI
-    cond do
-      Map.get(opts, :force_compile_time) -> :compile_time
-      Map.get(opts, :force_runtime) -> :runtime
-      Map.get(opts, :granular) or Map.get(opts, :capture_locals) -> :compile_time
-      Map.get(opts, :detailed) -> :both
-      true -> :runtime
-    end
-  end
+
 
   defp create_basic_module_analysis(module) do
     %{

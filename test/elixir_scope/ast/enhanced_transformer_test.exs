@@ -19,7 +19,7 @@ defmodule ElixirScope.AST.EnhancedTransformerTest do
         capture_locals: [:temp1, :temp2, :result]
       }
       
-      result = EnhancedTransformer.transform_with_runtime_bridge(input_ast, plan)
+      result = EnhancedTransformer.transform_with_enhanced_instrumentation(input_ast, plan)
       
       # Verify each expression has instrumentation
       assert expression_instrumented?(result, :temp1_assignment)
@@ -50,7 +50,7 @@ defmodule ElixirScope.AST.EnhancedTransformerTest do
         ]
       }
       
-      result = EnhancedTransformer.transform_with_runtime_bridge(input_ast, plan)
+      result = EnhancedTransformer.transform_with_enhanced_instrumentation(input_ast, plan)
       
       assert custom_logic_injected?(result, custom_logic)
     end
@@ -104,8 +104,8 @@ defmodule ElixirScope.AST.EnhancedTransformerTest do
     end
   end
   
-  describe "runtime integration" do
-    test "registers instrumented modules with runtime system" do
+  describe "enhanced instrumentation" do
+    test "transforms modules with enhanced capabilities" do
       input_ast = quote do
         defmodule TestModule do
           def test_function do
@@ -115,22 +115,18 @@ defmodule ElixirScope.AST.EnhancedTransformerTest do
       end
       
       plan = %{
-        module: TestModule, 
-        functions: %{
-          {TestModule, :test_function, 0} => %{instrument: true}
-        }
+        capture_locals: [:result],
+        trace_expressions: [:test_function]
       }
       
-      result = EnhancedTransformer.transform_with_runtime_bridge(input_ast, plan)
+      result = EnhancedTransformer.transform_with_enhanced_instrumentation(input_ast, plan)
       
-      # Verify registration call is injected
-      assert runtime_registration_present?(result, TestModule)
-      
-      # Verify plan is passed to runtime system
-      assert plan_passed_to_runtime?(result, plan)
+      # Verify the AST is transformed (basic check)
+      assert is_tuple(result)
+      assert match?({:defmodule, _, _}, result)
     end
 
-    test "includes runtime coordination checks" do
+    test "applies granular instrumentation without runtime coordination" do
       input_ast = quote do
         defmodule TestModule do
           def monitored_function(arg) do
@@ -139,13 +135,15 @@ defmodule ElixirScope.AST.EnhancedTransformerTest do
         end
       end
 
-      plan = %{coordinate_with_runtime: true}
+      plan = %{
+        capture_locals: [:arg]
+      }
 
-      result = EnhancedTransformer.transform_with_runtime_bridge(input_ast, plan)
+      result = EnhancedTransformer.transform_with_enhanced_instrumentation(input_ast, plan)
 
-      # Should include runtime enable/disable checks
-      assert runtime_coordination_present?(result)
-      assert ast_tracing_check_present?(result)
+      # Should transform without runtime coordination
+      assert is_tuple(result)
+      refute runtime_coordination_present?(result)
     end
   end
 
@@ -253,9 +251,21 @@ defmodule ElixirScope.AST.EnhancedTransformerTest do
   end
 
   defp variable_capture_present?(ast, variable_name) do
-    # Check if variable capture is present for the given variable
-    ast_string = Macro.to_string(ast)
-    String.contains?(ast_string, "#{variable_name}")
+    # Check if variable capture instrumentation is present for the given variable
+    Macro.prewalk(ast, false, fn
+      {{:., _, [{:__aliases__, _, [:ElixirScope, :Capture, :InstrumentationRuntime]}, :report_local_variable_snapshot]}, _, args}, _acc ->
+        # Check if the variable map contains our variable
+        case args do
+          [_, {:%{}, _, map_entries}, _, _] ->
+            variable_present = Enum.any?(map_entries, fn
+              {^variable_name, _} -> true
+              _ -> false
+            end)
+            {true, variable_present}
+          _ -> {false, false}
+        end
+      node, acc -> {node, acc}
+    end) |> elem(1)
   end
 
   defp custom_logic_injected?(ast, logic) do
@@ -265,10 +275,10 @@ defmodule ElixirScope.AST.EnhancedTransformerTest do
     String.contains?(ast_string, "IO.puts") and String.contains?(ast_string, "checkpoint")
   end
 
-  defp expression_tracing_present?(ast, _expression_name) do
-    # Check if expression tracing comment is present (simplified implementation)
+  defp expression_tracing_present?(ast, expression_name) do
+    # Check if expression tracing comment is present for the specific expression
     ast_string = Macro.to_string(ast)
-    String.contains?(ast_string, "Expression tracing enabled")
+    String.contains?(ast_string, "Expression tracing enabled for: #{expression_name}")
   end
 
   defp variable_capture_at_line?(ast, line_number) do
@@ -292,34 +302,10 @@ defmodule ElixirScope.AST.EnhancedTransformerTest do
     end)
   end
 
-  defp runtime_registration_present?(ast, module_name) do
-    # Check if runtime registration call is present
-    Macro.prewalk(ast, false, fn
-      {{:., _, [{:__aliases__, _, [:ElixirScope, :Runtime]}, :register_instrumented_module]}, _, [^module_name, _]}, _acc ->
-        {true, true}
-      node, acc -> {node, acc}
-    end) |> elem(1)
-  end
-
-  defp plan_passed_to_runtime?(ast, _plan) do
-    # Check if plan is passed to runtime system
-    ast_string = Macro.to_string(ast)
-    String.contains?(ast_string, "register_instrumented_module")
-  end
-
   defp runtime_coordination_present?(ast) do
     # Check if runtime coordination logic is present
     ast_string = Macro.to_string(ast)
     String.contains?(ast_string, "ast_tracing_enabled?")
-  end
-
-  defp ast_tracing_check_present?(ast) do
-    # Check if AST tracing enable/disable check is present
-    Macro.prewalk(ast, false, fn
-      {:if, _, [{:ast_tracing_enabled?, _, _}, _]}, _acc ->
-        {true, true}
-      node, acc -> {node, acc}
-    end) |> elem(1)
   end
 
   defp custom_injection_present?(ast, _line_number) do
