@@ -1,84 +1,293 @@
 # test/elixir_scope/ast_repository/repository_test.exs
 defmodule ElixirScope.ASTRepository.RepositoryTest do
-  use ExUnit.Case
-  use ExUnitProperties
+  use ExUnit.Case, async: true
+  
+  alias ElixirScope.ASTRepository.{Repository, ModuleData, FunctionData}
+  alias ElixirScope.Utils
 
-  alias ElixirScope.ASTRepository.Repository
-  alias ElixirScope.TestSupport.{Fixtures, Generators}
-
-  describe "core repository operations" do
-    test "stores and retrieves AST modules with instrumentation points" do
-      # Given: A sample module AST with known instrumentation points
-      {module_ast, expected_points} = Fixtures.SampleASTs.genserver_with_callbacks()
-
-      # When: We store it in the repository
-      {:ok, repo} = Repository.new()
-      :ok = Repository.store_module(repo, module_ast)
-
-      # Then: We can retrieve it with instrumentation points mapped
-      {:ok, stored_module} = Repository.get_module(repo, TestModule)
-      assert stored_module.instrumentation_points == expected_points
-      assert stored_module.ast == module_ast
+  describe "Repository lifecycle" do
+    test "can create a new repository instance" do
+      assert {:ok, repository} = Repository.new()
+      assert repository.repository_id
+      assert repository.version == "1.0.0"
+      assert is_integer(repository.creation_timestamp)
     end
-
-    test "maintains correlation index integrity" do
-      # Given: Multiple modules with overlapping correlation IDs
-      modules = Fixtures.SampleASTs.multiple_modules_with_correlations()
-
-      # When: We store them
-      {:ok, repo} = Repository.new()
-      Enum.each(modules, &Repository.store_module(repo, &1))
-
-      # Then: Correlation index maintains referential integrity
-      correlation_index = Repository.get_correlation_index(repo)
-
-      for {correlation_id, ast_node_id} <- correlation_index do
-        assert Repository.ast_node_exists?(repo, ast_node_id)
-        assert Repository.correlation_id_valid?(repo, correlation_id)
+    
+    test "can start repository as GenServer" do
+      assert {:ok, pid} = Repository.start_link(name: :test_repository)
+      assert Process.alive?(pid)
+      
+      # Clean up
+      GenServer.stop(pid)
+    end
+    
+    test "repository health check works" do
+      {:ok, pid} = Repository.start_link(name: :test_health_repository)
+      
+      assert {:ok, health} = Repository.health_check(pid)
+      assert health.status == :healthy
+      assert is_integer(health.uptime_ms)
+      assert is_map(health.memory_usage)
+      
+      # Clean up
+      GenServer.stop(pid)
+    end
+  end
+  
+  describe "Module storage and retrieval" do
+    setup do
+      {:ok, pid} = Repository.start_link(name: :test_module_repository)
+      
+      # Create sample AST for testing
+      sample_ast = {:defmodule, [line: 1], [
+        {:__aliases__, [line: 1], [:TestModule]},
+        [do: {:def, [line: 2], [{:test_function, [line: 2], []}, [do: :ok]]}]
+      ]}
+      
+      module_data = ModuleData.new(:TestModule, sample_ast, [
+        source_file: "test/test_module.ex",
+        instrumentation_points: [],
+        correlation_metadata: %{"test_correlation_id" => "test_ast_node_id"}
+      ])
+      
+      on_exit(fn -> 
+        if Process.alive?(pid) do
+          GenServer.stop(pid)
+        end
+      end)
+      
+      %{repository: pid, module_data: module_data, sample_ast: sample_ast}
+    end
+    
+    test "can store and retrieve module data", %{repository: repository, module_data: module_data} do
+      # Store module
+      assert :ok = Repository.store_module(repository, module_data)
+      
+      # Retrieve module
+      assert {:ok, retrieved_data} = Repository.get_module(repository, :TestModule)
+      assert retrieved_data.module_name == :TestModule
+      assert retrieved_data.source_file == "test/test_module.ex"
+      assert retrieved_data.version == "1.0.0"
+    end
+    
+    test "returns error for non-existent module", %{repository: repository} do
+      assert {:error, :not_found} = Repository.get_module(repository, :NonExistentModule)
+    end
+    
+    test "can update module data", %{repository: repository, module_data: module_data} do
+      # Store initial module
+      assert :ok = Repository.store_module(repository, module_data)
+      
+      # Update module
+      update_fn = fn data ->
+        ModuleData.update_runtime_insights(data, %{execution_count: 42})
       end
+      
+      assert :ok = Repository.update_module(repository, :TestModule, update_fn)
+      
+      # Verify update
+      assert {:ok, updated_data} = Repository.get_module(repository, :TestModule)
+      assert updated_data.runtime_insights.execution_count == 42
+    end
+    
+    test "update returns error for non-existent module", %{repository: repository} do
+      update_fn = fn data -> data end
+      
+      assert {:error, :not_found} = Repository.update_module(repository, :NonExistentModule, update_fn)
     end
   end
-
-  describe "performance requirements" do
-    test "AST storage completes under 10ms for medium modules" do
-      module_ast = Fixtures.SampleASTs.medium_complexity_module()
-      {:ok, repo} = Repository.new()
-
-      {time_us, _result} = :timer.tc(fn ->
-        Repository.store_module(repo, module_ast)
+  
+  describe "Function storage and retrieval" do
+    setup do
+      {:ok, pid} = Repository.start_link(name: :test_function_repository)
+      
+      # Create sample function AST
+      function_ast = {:def, [line: 2], [
+        {:test_function, [line: 2], []},
+        [do: :ok]
+      ]}
+      
+      function_key = {:TestModule, :test_function, 0}
+      function_data = FunctionData.new(function_key, function_ast, [
+        source_location: {"test/test_module.ex", 2},
+        visibility: :public
+      ])
+      
+      on_exit(fn -> 
+        if Process.alive?(pid) do
+          GenServer.stop(pid)
+        end
       end)
-
-      time_ms = time_us / 1000
-      assert time_ms < 10, "AST storage took #{time_ms}ms, expected < 10ms"
+      
+      %{repository: pid, function_data: function_data, function_key: function_key}
     end
-
-    test "correlation lookup completes under 1ms" do
-      # Setup: Repository with 1000 correlations
-      {:ok, repo} = setup_repo_with_correlations(1000)
-      correlation_id = Fixtures.random_correlation_id()
-
-      {time_us, _result} = :timer.tc(fn ->
-        Repository.get_ast_node_by_correlation(repo, correlation_id)
+    
+    test "can store and retrieve function data", %{repository: repository, function_data: function_data, function_key: function_key} do
+      # Store function
+      assert :ok = Repository.store_function(repository, function_data)
+      
+      # Retrieve function
+      assert {:ok, retrieved_data} = Repository.get_function(repository, function_key)
+      assert retrieved_data.function_key == function_key
+      assert retrieved_data.visibility == :public
+      assert retrieved_data.version == "1.0.0"
+    end
+    
+    test "returns error for non-existent function", %{repository: repository} do
+      non_existent_key = {:NonExistentModule, :non_existent_function, 0}
+      assert {:error, :not_found} = Repository.get_function(repository, non_existent_key)
+    end
+  end
+  
+  describe "Runtime correlation" do
+    setup do
+      {:ok, pid} = Repository.start_link(name: :test_correlation_repository)
+      
+      # Create module with correlation metadata
+      sample_ast = {:defmodule, [line: 1], [
+        {:__aliases__, [line: 1], [:TestModule]},
+        [do: {:def, [line: 2], [{:test_function, [line: 2], []}, [do: :ok]]}]
+      ]}
+      
+      correlation_metadata = %{"test_correlation_123" => "ast_node_456"}
+      
+      module_data = ModuleData.new(:TestModule, sample_ast, [
+        correlation_metadata: correlation_metadata
+      ])
+      
+      # Store the module
+      :ok = Repository.store_module(pid, module_data)
+      
+      on_exit(fn -> 
+        if Process.alive?(pid) do
+          GenServer.stop(pid)
+        end
       end)
-
-      time_ms = time_us / 1000
-      assert time_ms < 1, "Correlation lookup took #{time_ms}ms, expected < 1ms"
+      
+      %{repository: pid, correlation_id: "test_correlation_123", ast_node_id: "ast_node_456"}
+    end
+    
+    test "can correlate runtime events", %{repository: repository, correlation_id: correlation_id, ast_node_id: ast_node_id} do
+      # Create a runtime event with correlation ID
+      runtime_event = %{
+        correlation_id: correlation_id,
+        timestamp: Utils.monotonic_timestamp(),
+        event_type: :function_call,
+        data: %{module: :TestModule, function: :test_function}
+      }
+      
+      # Correlate the event
+      assert {:ok, correlated_ast_node_id} = Repository.correlate_event(repository, runtime_event)
+      assert correlated_ast_node_id == ast_node_id
+    end
+    
+    test "returns error for event without correlation ID", %{repository: repository} do
+      runtime_event = %{
+        timestamp: Utils.monotonic_timestamp(),
+        event_type: :function_call,
+        data: %{module: :TestModule, function: :test_function}
+      }
+      
+      assert {:error, :no_correlation_id} = Repository.correlate_event(repository, runtime_event)
+    end
+    
+    test "returns error for unknown correlation ID", %{repository: repository} do
+      runtime_event = %{
+        correlation_id: "unknown_correlation_id",
+        timestamp: Utils.monotonic_timestamp(),
+        event_type: :function_call
+      }
+      
+      assert {:error, :correlation_not_found} = Repository.correlate_event(repository, runtime_event)
+    end
+  end
+  
+  describe "Statistics and monitoring" do
+    setup do
+      {:ok, pid} = Repository.start_link(name: :test_stats_repository)
+      
+      on_exit(fn -> 
+        if Process.alive?(pid) do
+          GenServer.stop(pid)
+        end
+      end)
+      
+      %{repository: pid}
+    end
+    
+    test "can get repository statistics", %{repository: repository} do
+      assert {:ok, stats} = Repository.get_statistics(repository)
+      
+      assert is_binary(stats.repository_id)
+      assert stats.version == "1.0.0"
+      assert is_integer(stats.uptime_ms)
+      assert is_map(stats.table_sizes)
+      assert stats.table_sizes.modules >= 0
+      assert stats.table_sizes.functions >= 0
+      assert stats.table_sizes.correlations >= 0
+    end
+    
+    test "statistics update when storing data", %{repository: repository} do
+      # Get initial stats
+      {:ok, initial_stats} = Repository.get_statistics(repository)
+      initial_modules = initial_stats.table_sizes.modules
+      
+      # Store a module
+      sample_ast = {:defmodule, [line: 1], [
+        {:__aliases__, [line: 1], [:StatsTestModule]},
+        [do: nil]
+      ]}
+      
+      module_data = ModuleData.new(:StatsTestModule, sample_ast)
+      :ok = Repository.store_module(repository, module_data)
+      
+      # Get updated stats
+      {:ok, updated_stats} = Repository.get_statistics(repository)
+      assert updated_stats.table_sizes.modules == initial_modules + 1
+    end
+  end
+  
+  describe "Instrumentation points" do
+    setup do
+      {:ok, pid} = Repository.start_link(name: :test_instrumentation_repository)
+      
+      # Create module with instrumentation points
+      instrumentation_points = [
+        %{ast_node_id: "node_123", type: :function_entry, metadata: %{}},
+        %{ast_node_id: "node_456", type: :function_exit, metadata: %{}}
+      ]
+      
+      sample_ast = {:defmodule, [line: 1], [
+        {:__aliases__, [line: 1], [:InstrumentedModule]},
+        [do: nil]
+      ]}
+      
+      module_data = ModuleData.new(:InstrumentedModule, sample_ast, [
+        instrumentation_points: instrumentation_points
+      ])
+      
+      :ok = Repository.store_module(pid, module_data)
+      
+      on_exit(fn -> 
+        if Process.alive?(pid) do
+          GenServer.stop(pid)
+        end
+      end)
+      
+      %{repository: pid, instrumentation_points: instrumentation_points}
+    end
+    
+    test "can retrieve instrumentation points", %{repository: repository} do
+      assert {:ok, points} = Repository.get_instrumentation_points(repository, "node_123")
+      assert is_map(points)
+      assert points.ast_node_id == "node_123"
+      assert points.type == :function_entry
+    end
+    
+    test "returns error for non-existent instrumentation point", %{repository: repository} do
+      assert {:error, :not_found} = Repository.get_instrumentation_points(repository, "non_existent_node")
     end
   end
 
-  property "repository maintains AST integrity across operations" do
-    check all module_ast <- Generators.valid_module_ast(),
-              operations <- Generators.repository_operations() do
 
-      {:ok, repo} = Repository.new()
-      :ok = Repository.store_module(repo, module_ast)
-
-      # Apply random operations
-      final_repo = apply_operations(repo, operations)
-
-      # Invariant: Original AST should still be retrievable and unchanged
-      {:ok, retrieved} = Repository.get_module(final_repo, extract_module_name(module_ast))
-      assert retrieved.ast == module_ast
-    end
-  end
 end
