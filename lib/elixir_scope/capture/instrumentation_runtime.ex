@@ -152,6 +152,7 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
   
   This is called by AST-injected code to capture local variable values
   at specific points in function execution.
+  Enhanced to support AST node correlation for hybrid architecture.
   """
   @spec report_local_variable_snapshot(correlation_id(), map(), non_neg_integer(), atom()) :: :ok
   def report_local_variable_snapshot(correlation_id, variables, line, _source \\ :ast) do
@@ -163,7 +164,40 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
           %{
             variables: variables,
             line: line,
-            correlation_id: correlation_id
+            correlation_id: correlation_id,
+            source: :ast
+          },
+          self(),
+          correlation_id,
+          System.monotonic_time(:nanosecond),
+          System.system_time(:nanosecond)
+        )
+        
+      _ ->
+        :ok
+    end
+  end
+
+  @doc """
+  Reports a local variable snapshot with AST node correlation.
+  
+  This version includes AST node ID for direct correlation with the AST Repository.
+  Used by the enhanced AST transformer for hybrid architecture support.
+  """
+  @spec report_ast_variable_snapshot(correlation_id(), map(), non_neg_integer(), String.t()) :: :ok
+  def report_ast_variable_snapshot(correlation_id, variables, line, ast_node_id) do
+    case get_context() do
+      %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
+        Ingestor.ingest_generic_event(
+          buffer,
+          :local_variable_snapshot,
+          %{
+            variables: variables,
+            line: line,
+            correlation_id: correlation_id,
+            ast_node_id: ast_node_id,
+            source: :ast,
+            ast_correlation: true
           },
           self(),
           correlation_id,
@@ -181,6 +215,7 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
   
   This is called by AST-injected code to capture the value of specific
   expressions during execution.
+  Enhanced to support AST node correlation for hybrid architecture.
   """
   @spec report_expression_value(correlation_id(), String.t(), term(), non_neg_integer(), atom()) :: :ok
   def report_expression_value(correlation_id, expression, value, line, _source \\ :ast) do
@@ -193,7 +228,8 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
             expression: expression,
             value: value,
             line: line,
-            correlation_id: correlation_id
+            correlation_id: correlation_id,
+            source: :ast
           },
           self(),
           correlation_id,
@@ -210,6 +246,7 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
   Reports line execution (AST-specific).
   
   This is called by AST-injected code to mark execution of specific lines.
+  Enhanced to support AST node correlation for hybrid architecture.
   """
   @spec report_line_execution(correlation_id(), non_neg_integer(), map(), atom()) :: :ok
   def report_line_execution(correlation_id, line, context, _source \\ :ast) do
@@ -221,7 +258,8 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
           %{
             line: line,
             context: context,
-            correlation_id: correlation_id
+            correlation_id: correlation_id,
+            source: :ast
           },
           self(),
           correlation_id,
@@ -238,6 +276,7 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
   Reports AST function entry with source tagging.
   
   This is similar to report_function_entry but specifically for AST-injected calls.
+  Enhanced to support AST node correlation for hybrid architecture.
   """
   @spec report_ast_function_entry(module(), atom(), list(), correlation_id()) :: :ok
   def report_ast_function_entry(module, function, args, correlation_id) do
@@ -251,7 +290,45 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
             function: function,
             arity: length(args),
             args: args,
-            source: :ast
+            source: :ast,
+            correlation_id: correlation_id
+          },
+          self(),
+          correlation_id,
+          System.monotonic_time(:nanosecond),
+          System.system_time(:nanosecond)
+        )
+        
+      _ ->
+        :ok
+    end
+  end
+
+  @doc """
+  Reports AST function entry with enhanced correlation metadata.
+  
+  This version includes AST node ID for direct correlation with the AST Repository.
+  Used by the enhanced AST transformer for hybrid architecture support.
+  """
+  @spec report_ast_function_entry_with_node_id(module(), atom(), list(), correlation_id(), String.t()) :: :ok
+  def report_ast_function_entry_with_node_id(module, function, args, correlation_id, ast_node_id) do
+    case get_context() do
+      %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
+        # Push to call stack for nested tracking
+        push_call_stack(correlation_id)
+        
+        Ingestor.ingest_generic_event(
+          buffer,
+          :function_entry,
+          %{
+            module: module,
+            function: function,
+            arity: length(args),
+            args: args,
+            source: :ast,
+            correlation_id: correlation_id,
+            ast_node_id: ast_node_id,
+            ast_correlation: true
           },
           self(),
           correlation_id,
@@ -266,18 +343,225 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
 
   @doc """
   Reports AST function exit with source tagging.
+  Enhanced to support AST node correlation for hybrid architecture.
   """
   @spec report_ast_function_exit(correlation_id(), term(), non_neg_integer()) :: :ok
   def report_ast_function_exit(correlation_id, return_value, duration_ns) do
     case get_context() do
       %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
+        # Pop from call stack
+        pop_call_stack()
+        
         Ingestor.ingest_generic_event(
           buffer,
           :function_exit,
           %{
             return_value: return_value,
             duration_ns: duration_ns,
-            source: :ast
+            source: :ast,
+            correlation_id: correlation_id
+          },
+          self(),
+          correlation_id,
+          System.monotonic_time(:nanosecond),
+          System.system_time(:nanosecond)
+        )
+        
+      _ ->
+        :ok
+    end
+  end
+
+  @doc """
+  Reports AST function exit with enhanced correlation metadata.
+  
+  This version includes AST node ID for direct correlation with the AST Repository.
+  Used by the enhanced AST transformer for hybrid architecture support.
+  """
+  @spec report_ast_function_exit_with_node_id(correlation_id(), term(), non_neg_integer(), String.t()) :: :ok
+  def report_ast_function_exit_with_node_id(correlation_id, return_value, duration_ns, ast_node_id) do
+    case get_context() do
+      %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
+        # Pop from call stack
+        pop_call_stack()
+        
+        Ingestor.ingest_generic_event(
+          buffer,
+          :function_exit,
+          %{
+            return_value: return_value,
+            duration_ns: duration_ns,
+            source: :ast,
+            correlation_id: correlation_id,
+            ast_node_id: ast_node_id,
+            ast_correlation: true
+          },
+          self(),
+          correlation_id,
+          System.monotonic_time(:nanosecond),
+          System.system_time(:nanosecond)
+        )
+        
+      _ ->
+        :ok
+    end
+  end
+
+  @doc """
+  Reports AST expression evaluation with node correlation.
+  
+  This version includes AST node ID for direct correlation with the AST Repository.
+  Used to track specific expression evaluations in the hybrid architecture.
+  """
+  @spec report_ast_expression_value(correlation_id(), String.t(), term(), non_neg_integer(), String.t()) :: :ok
+  def report_ast_expression_value(correlation_id, expression, value, line, ast_node_id) do
+    case get_context() do
+      %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
+        Ingestor.ingest_generic_event(
+          buffer,
+          :expression_value,
+          %{
+            expression: expression,
+            value: value,
+            line: line,
+            correlation_id: correlation_id,
+            ast_node_id: ast_node_id,
+            source: :ast,
+            ast_correlation: true
+          },
+          self(),
+          correlation_id,
+          System.monotonic_time(:nanosecond),
+          System.system_time(:nanosecond)
+        )
+        
+      _ ->
+        :ok
+    end
+  end
+
+  @doc """
+  Reports AST line execution with node correlation.
+  
+  This version includes AST node ID for direct correlation with the AST Repository.
+  Used to track specific line executions in the hybrid architecture.
+  """
+  @spec report_ast_line_execution(correlation_id(), non_neg_integer(), map(), String.t()) :: :ok
+  def report_ast_line_execution(correlation_id, line, context, ast_node_id) do
+    case get_context() do
+      %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
+        Ingestor.ingest_generic_event(
+          buffer,
+          :line_execution,
+          %{
+            line: line,
+            context: context,
+            correlation_id: correlation_id,
+            ast_node_id: ast_node_id,
+            source: :ast,
+            ast_correlation: true
+          },
+          self(),
+          correlation_id,
+          System.monotonic_time(:nanosecond),
+          System.system_time(:nanosecond)
+        )
+        
+      _ ->
+        :ok
+    end
+  end
+
+  @doc """
+  Reports AST pattern match with node correlation.
+  
+  Used to track pattern matching operations in the hybrid architecture.
+  Provides insights into pattern match success/failure and variable bindings.
+  """
+  @spec report_ast_pattern_match(correlation_id(), term(), term(), boolean(), non_neg_integer(), String.t()) :: :ok
+  def report_ast_pattern_match(correlation_id, pattern, value, match_success, line, ast_node_id) do
+    case get_context() do
+      %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
+        Ingestor.ingest_generic_event(
+          buffer,
+          :pattern_match,
+          %{
+            pattern: pattern,
+            value: value,
+            match_success: match_success,
+            line: line,
+            correlation_id: correlation_id,
+            ast_node_id: ast_node_id,
+            source: :ast,
+            ast_correlation: true
+          },
+          self(),
+          correlation_id,
+          System.monotonic_time(:nanosecond),
+          System.system_time(:nanosecond)
+        )
+        
+      _ ->
+        :ok
+    end
+  end
+
+  @doc """
+  Reports AST conditional branch execution with node correlation.
+  
+  Used to track which branches of conditionals (if/case/cond) are taken.
+  Provides insights into code path execution patterns.
+  """
+  @spec report_ast_branch_execution(correlation_id(), atom(), term(), boolean(), non_neg_integer(), String.t()) :: :ok
+  def report_ast_branch_execution(correlation_id, branch_type, condition, branch_taken, line, ast_node_id) do
+    case get_context() do
+      %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
+        Ingestor.ingest_generic_event(
+          buffer,
+          :branch_execution,
+          %{
+            branch_type: branch_type,
+            condition: condition,
+            branch_taken: branch_taken,
+            line: line,
+            correlation_id: correlation_id,
+            ast_node_id: ast_node_id,
+            source: :ast,
+            ast_correlation: true
+          },
+          self(),
+          correlation_id,
+          System.monotonic_time(:nanosecond),
+          System.system_time(:nanosecond)
+        )
+        
+      _ ->
+        :ok
+    end
+  end
+
+  @doc """
+  Reports AST loop iteration with node correlation.
+  
+  Used to track loop iterations (Enum.map, for comprehensions, etc.).
+  Provides insights into iteration patterns and performance.
+  """
+  @spec report_ast_loop_iteration(correlation_id(), atom(), non_neg_integer(), term(), non_neg_integer(), String.t()) :: :ok
+  def report_ast_loop_iteration(correlation_id, loop_type, iteration_count, current_value, line, ast_node_id) do
+    case get_context() do
+      %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
+        Ingestor.ingest_generic_event(
+          buffer,
+          :loop_iteration,
+          %{
+            loop_type: loop_type,
+            iteration_count: iteration_count,
+            current_value: current_value,
+            line: line,
+            correlation_id: correlation_id,
+            ast_node_id: ast_node_id,
+            source: :ast,
+            ast_correlation: true
           },
           self(),
           correlation_id,
@@ -482,6 +766,72 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
     case Process.get(@call_stack_key, []) do
       [_ | rest] -> Process.put(@call_stack_key, rest)
       [] -> :ok
+    end
+  end
+
+  # AST Correlation Helper Functions
+
+  @doc """
+  Gets AST correlation metadata for the current context.
+  
+  Returns metadata that can be used to correlate runtime events with AST nodes.
+  Used internally by AST correlation functions.
+  """
+  @spec get_ast_correlation_metadata() :: map()
+  def get_ast_correlation_metadata do
+    %{
+      process_id: self(),
+      correlation_id: current_correlation_id(),
+      timestamp_mono: System.monotonic_time(:nanosecond),
+      timestamp_system: System.system_time(:nanosecond),
+      enabled: enabled?()
+    }
+  end
+
+  @doc """
+  Validates AST node ID format for correlation.
+  
+  Ensures AST node IDs follow the expected format for the hybrid architecture.
+  Returns {:ok, node_id} or {:error, reason}.
+  """
+  @spec validate_ast_node_id(String.t()) :: {:ok, String.t()} | {:error, atom()}
+  def validate_ast_node_id(ast_node_id) when is_binary(ast_node_id) do
+    # AST node IDs should follow format: "module:function:line:node_type"
+    case String.split(ast_node_id, ":") do
+      [_module, _function, _line, _node_type] -> {:ok, ast_node_id}
+      _ -> {:error, :invalid_format}
+    end
+  end
+  def validate_ast_node_id(_), do: {:error, :not_string}
+
+  @doc """
+  Reports AST correlation performance metrics.
+  
+  Used to track the performance impact of AST correlation features.
+  Helps ensure <5ms correlation latency target is met.
+  """
+  @spec report_ast_correlation_performance(correlation_id(), String.t(), non_neg_integer()) :: :ok
+  def report_ast_correlation_performance(correlation_id, operation, duration_ns) do
+    case get_context() do
+      %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
+        Ingestor.ingest_generic_event(
+          buffer,
+          :ast_correlation_performance,
+          %{
+            operation: operation,
+            duration_ns: duration_ns,
+            correlation_id: correlation_id,
+            source: :ast_correlation,
+            performance_metric: true
+          },
+          self(),
+          correlation_id,
+          System.monotonic_time(:nanosecond),
+          System.system_time(:nanosecond)
+        )
+        
+      _ ->
+        :ok
     end
   end
 
