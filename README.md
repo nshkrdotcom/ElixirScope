@@ -55,20 +55,20 @@ end
 
 ```mermaid
 graph TB
-    subgraph "Compile Time"
+    subgraph CT["Compile&nbsp;Time"]
         AST[Source AST]
         ANALYZER[AI Analyzer]
         TRANS[AST Transformer]
         REPO[AST Repository<br/>v0.0.2]
     end
     
-    subgraph "Runtime"
+    subgraph RT["Runtime"]
         RUNTIME[Instrumentation<br/>Runtime]
         EVENTS[Event Pipeline]
         TEMPORAL[Temporal Storage]
     end
     
-    subgraph "Analysis"
+    subgraph A["Analysis"]
         CINEMA[Cinema Debugger]
         QUERY[Query Engine]
         AI[AI Insights]
@@ -87,6 +87,9 @@ graph TB
     REPO --> QUERY
     QUERY --> AI
     
+    style CT fill:#031121
+    style RT fill:#031121
+    style A fill:#031121
     style AST fill:#4a148c,stroke:#1a237e,stroke-width:2px,color:#fff
     style ANALYZER fill:#1565c0,stroke:#0d47a1,stroke-width:2px,color:#fff
     style TRANS fill:#2e7d32,stroke:#1b5e20,stroke-width:2px,color:#fff
