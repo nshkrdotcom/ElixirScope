@@ -189,11 +189,12 @@ defmodule ElixirScope do
       events = ElixirScope.get_events(since: since)
   """
   @spec get_events(event_query()) :: [ElixirScope.Events.t()] | {:error, term()}
-  def get_events(_query \\ []) do
+  def get_events(query \\ []) do
     if running?() do
-      # TODO: Implement in Layer 6 when QueryCoordinator is available
-      # ElixirScope.Storage.QueryCoordinator.query_events(query)
-      {:error, :not_implemented_yet}
+      case ElixirScope.Core.EventManager.get_events(query) do
+        {:ok, events} -> events
+        {:error, reason} -> {:error, reason}
+      end
     else
       {:error, :not_running}
     end
@@ -215,9 +216,10 @@ defmodule ElixirScope do
   @spec get_state_history(pid()) :: [ElixirScope.Events.StateChange.t()] | {:error, term()}
   def get_state_history(pid) when is_pid(pid) do
     if running?() do
-      # TODO: Implement in Layer 6 when QueryCoordinator is available
-      # ElixirScope.Storage.QueryCoordinator.get_state_history(pid)
-      {:error, :not_implemented_yet}
+      case ElixirScope.Core.StateManager.get_state_history(pid) do
+        {:ok, history} -> history
+        {:error, reason} -> {:error, reason}
+      end
     else
       {:error, :not_running}
     end
@@ -234,9 +236,10 @@ defmodule ElixirScope do
   @spec get_state_at(pid(), integer()) :: term() | {:error, term()}
   def get_state_at(pid, timestamp) when is_pid(pid) and is_integer(timestamp) do
     if running?() do
-      # TODO: Implement in Layer 6 when state reconstruction is available
-      # ElixirScope.Storage.QueryCoordinator.reconstruct_state_at(pid, timestamp)
-      {:error, :not_implemented_yet}
+      case ElixirScope.Core.StateManager.get_state_at(pid, timestamp) do
+        {:ok, state} -> state
+        {:error, reason} -> {:error, reason}
+      end
     else
       {:error, :not_running}
     end
@@ -262,12 +265,13 @@ defmodule ElixirScope do
       )
   """
   @spec get_message_flow(pid(), pid(), keyword()) :: [ElixirScope.Events.MessageSend.t()] | {:error, term()}
-  def get_message_flow(sender_pid, receiver_pid, _opts \\ []) 
+  def get_message_flow(sender_pid, receiver_pid, opts \\ []) 
       when is_pid(sender_pid) and is_pid(receiver_pid) do
     if running?() do
-      # TODO: Implement in Layer 6 when message correlation is available
-      # ElixirScope.Storage.QueryCoordinator.get_message_flow(sender_pid, receiver_pid, opts)
-      {:error, :not_implemented_yet}
+      case ElixirScope.Core.MessageTracker.get_message_flow(sender_pid, receiver_pid, opts) do
+        {:ok, flow} -> flow
+        {:error, reason} -> {:error, reason}
+      end
     else
       {:error, :not_running}
     end
@@ -288,11 +292,12 @@ defmodule ElixirScope do
       ElixirScope.analyze_codebase(modules: [MyApp.NewModule])
   """
   @spec analyze_codebase(keyword()) :: :ok | {:error, term()}
-  def analyze_codebase(_opts \\ []) do
+  def analyze_codebase(opts \\ []) do
     if running?() do
-      # TODO: Implement in Layer 4 when AI.Orchestrator is available
-      # ElixirScope.AI.Orchestrator.analyze_codebase(opts)
-      {:error, :not_implemented_yet}
+      case ElixirScope.Core.AIManager.analyze_codebase(opts) do
+        {:ok, analysis} -> analysis
+        {:error, reason} -> {:error, reason}
+      end
     else
       {:error, :not_running}
     end
@@ -316,11 +321,12 @@ defmodule ElixirScope do
       ElixirScope.update_instrumentation(strategy: :full_trace)
   """
   @spec update_instrumentation(keyword()) :: :ok | {:error, term()}
-  def update_instrumentation(_updates) do
+  def update_instrumentation(updates) do
     if running?() do
-      # TODO: Implement in Layer 4 when AI.Orchestrator is available
-      # ElixirScope.AI.Orchestrator.update_instrumentation(updates)
-      {:error, :not_implemented_yet}
+      case ElixirScope.Core.AIManager.update_instrumentation(updates) do
+        {:ok, result} -> result
+        {:error, reason} -> {:error, reason}
+      end
     else
       {:error, :not_running}
     end
