@@ -288,7 +288,7 @@ Current focus areas:
 
 - **GitHub Discussions**: [Questions & Ideas](https://github.com/nshkrdotcom/ElixirScope/issues)
 - **Elixir Forum**: Tag posts with `elixir-scope`
-- **X**: [@elixirscope](https://x.com/micbyrd)
+- **X**: [@micbryd](https://x.com/micbryd)
 
 ## 📊 Comparison with Other Tools
 
