@@ -36,7 +36,7 @@ defmodule CinemaDemo.MixProject do
   # Run "mix help deps.get" to learn about dependencies.
   defp deps do
     [
-      {:elixir_scope, path: "../.."},
+      {:elixir_scope, "~> 0.0.1"},
       {:jason, "~> 1.4"}
     ]
   end
