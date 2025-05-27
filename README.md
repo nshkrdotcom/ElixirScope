@@ -17,7 +17,7 @@ cd elixir_scope/test_apps/cinema_demo
 
 **✨ See all features working in ~1 minute:** Time-travel debugging, performance monitoring, state reconstruction, and more!
 
-**[📖 Complete Demo Documentation →](test_apps/cinema_demo/FULLY_BLOWN.md)**
+**[📖 Complete Demo Documentation →](https://github.com/nshkrdotcom/ElixirScope/blob/main/test_apps/cinema_demo/FULLY_BLOWN.md**
 
 ## 🎯 Vision & Mission
 
@@ -51,7 +51,7 @@ cd test_apps/cinema_demo
 - ✅ Complete end-to-end workflow demonstration
 - ✅ ~1 minute comprehensive feature showcase
 
-**[📖 See FULLY_BLOWN.md for complete demo documentation](test_apps/cinema_demo/FULLY_BLOWN.md)**
+**[📖 See FULLY_BLOWN.md for complete demo documentation](https://github.com/nshkrdotcom/ElixirScope/blob/main/test_apps/cinema_demo/FULLY_BLOWN.md)**
 
 ### ✅ **Production-Ready Components**
 
@@ -249,7 +249,7 @@ The fastest way to experience ElixirScope is through our comprehensive demo:
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/elixir_scope.git
+git clone https://github.com/nshkrdotcom/ElixirScope.git elixir_scope
 cd elixir_scope
 
 # Run the complete showcase
