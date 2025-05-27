@@ -1,7 +1,7 @@
 # ElixirScope Public API Documentation
 
 **Version**: 0.0.1
-**Last Updated**: December 2024
+**Last Updated**: May 26, 2025
 **Status**: Foundation Complete - Cinema Demo Available
 
 ElixirScope is an AI-powered execution cinema debugger for Elixir applications that provides deep observability, time-travel debugging, and comprehensive event capture with minimal overhead.
