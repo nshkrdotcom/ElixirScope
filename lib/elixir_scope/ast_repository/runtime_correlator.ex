@@ -132,6 +132,17 @@ defmodule ElixirScope.ASTRepository.RuntimeCorrelator do
   def query_temporal_events(correlator \\ __MODULE__, start_time, end_time) do
     GenServer.call(correlator, {:query_temporal_events, start_time, end_time})
   end
+
+  @doc """
+  Gets all runtime events correlated with a specific AST node, ordered chronologically.
+  
+  This is the primary function for AST-centric debugging queries.
+  """
+  @spec get_events_for_ast_node(GenServer.server(), ast_node_id()) :: 
+    {:ok, [runtime_event()]} | {:error, term()}
+  def get_events_for_ast_node(correlator \\ __MODULE__, ast_node_id) do
+    GenServer.call(correlator, {:get_events_for_ast_node, ast_node_id})
+  end
   
   #############################################################################
   # GenServer Callbacks
@@ -212,6 +223,12 @@ defmodule ElixirScope.ASTRepository.RuntimeCorrelator do
   @impl true
   def handle_call({:query_temporal_events, start_time, end_time}, _from, state) do
     result = query_temporal_events_impl(state, start_time, end_time)
+    {:reply, result, state}
+  end
+
+  @impl true
+  def handle_call({:get_events_for_ast_node, ast_node_id}, _from, state) do
+    result = get_events_for_ast_node_impl(state, ast_node_id)
     {:reply, result, state}
   end
   
@@ -338,13 +355,31 @@ defmodule ElixirScope.ASTRepository.RuntimeCorrelator do
     end
   end
   
-  defp get_correlated_events_impl(_state, _ast_node_id) do
-    # Query events that have been correlated with this AST node
+  defp get_correlated_events_impl(state, ast_node_id) do
+    get_events_for_ast_node_impl(state, ast_node_id)
+  end
+
+  defp get_events_for_ast_node_impl(state, ast_node_id) do
     try do
-      # Use the correlation query function from DataAccess
-      # For now, we'll return an empty list as a placeholder
-      # In a full implementation, we'd need to enhance DataAccess to support AST node queries
-      {:ok, []}
+      # Get all correlation IDs for this AST node from temporal index
+      correlation_ids = :ets.select(state.temporal_index, [
+        {{:_, {:'$1', ast_node_id}}, [], [:'$1']}
+      ])
+      
+      # Get events from DataAccess for each correlation ID
+      events = Enum.flat_map(correlation_ids, fn correlation_id ->
+        case DataAccess.query_by_correlation(state.data_access, correlation_id) do
+          {:ok, events} -> events
+          {:error, _} -> []
+        end
+      end)
+      
+      # Sort by timestamp for chronological order
+      sorted_events = Enum.sort_by(events, fn event ->
+        extract_timestamp(event)
+      end)
+      
+      {:ok, sorted_events}
     rescue
       error -> {:error, {:query_failed, error}}
     end
