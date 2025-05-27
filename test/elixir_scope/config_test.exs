@@ -1,7 +1,8 @@
 defmodule ElixirScope.ConfigTest do
-  use ExUnit.Case, async: true
+  use ExUnit.Case, async: false  # Config tests must be synchronous due to shared GenServer
 
   alias ElixirScope.Config
+  alias ElixirScope.TestHelpers
 
   describe "config validation" do
     test "validates default configuration structure" do
@@ -188,14 +189,39 @@ defmodule ElixirScope.ConfigTest do
 
   describe "configuration server" do
     setup do
+      # Ensure Config GenServer is available with better error handling
+      case ElixirScope.TestHelpers.ensure_config_available() do
+        :ok -> :ok
+        {:error, reason} -> 
+          flunk("Failed to ensure Config GenServer availability: #{inspect(reason)}")
+      end
+      
       # Use the already running Config GenServer from the application
-      # Store the current state to restore later
-      current_config = Config.get()
+      # Store the current state to restore later with timeout
+      current_config = try do
+        Config.get()
+      catch
+        :exit, reason ->
+          flunk("Failed to get current config in setup: #{inspect(reason)}")
+      end
       
       on_exit(fn -> 
-        # Restore original sampling rate if it was changed
-        original_rate = current_config.ai.planning.sampling_rate
-        Config.update([:ai, :planning, :sampling_rate], original_rate)
+        # Restore original sampling rate if it was changed and Config is still running
+        # Use try/catch to handle cases where GenServer stops between check and call
+        try do
+          if GenServer.whereis(ElixirScope.Config) do
+            original_rate = current_config.ai.planning.sampling_rate
+            Config.update([:ai, :planning, :sampling_rate], original_rate)
+          end
+        rescue
+          _ ->
+            # Any other error during cleanup - this is acceptable
+            :ok
+        catch
+          :exit, _reason ->
+            # GenServer stopped during cleanup - this is acceptable
+            :ok
+        end
       end)
       
       %{original_config: current_config}
@@ -337,6 +363,12 @@ defmodule ElixirScope.ConfigTest do
   end
 
   describe "performance" do
+    setup do
+      # Ensure Config GenServer is available for performance tests
+      :ok = TestHelpers.ensure_config_available()
+      :ok
+    end
+    
     test "configuration validation is functional" do
       config = %Config{}
       

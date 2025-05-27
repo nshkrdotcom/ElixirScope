@@ -4,6 +4,7 @@ defmodule ElixirScope.ASTRepository.ParserEnhancedTest do
   alias ElixirScope.ASTRepository.Parser
   alias ElixirScope.ASTRepository.TestSupport.Fixtures.SampleASTs
   alias ElixirScope.ASTRepository.TestSupport.Helpers
+  alias ElixirScope.TestHelpers
 
   describe "AST parsing with node ID assignment" do
     test "assigns unique node IDs to instrumentable AST nodes" do
@@ -233,6 +234,12 @@ defmodule ElixirScope.ASTRepository.ParserEnhancedTest do
   end
 
   describe "integration with existing AST transformation pipeline" do
+    setup do
+      # Ensure Config GenServer is available for integration tests
+      :ok = TestHelpers.ensure_config_available()
+      :ok
+    end
+    
     test "integrates with existing Repository storage" do
       # Given: Enhanced AST from parser
       sample = SampleASTs.get_sample_ast(:simple_genserver)

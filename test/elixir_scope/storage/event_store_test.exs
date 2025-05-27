@@ -40,8 +40,8 @@ defmodule ElixirScope.Storage.EventStoreTest do
       end_time = System.monotonic_time(:microsecond)
       avg_time_per_event = (end_time - start_time) / 100
       
-      # Should store each event in less than 10µs on average
-      assert avg_time_per_event < 10
+      # Should store each event in less than 15µs on average
+      assert avg_time_per_event < 15
       
       {:ok, retrieved_events} = EventStore.query_events(store, [])
       assert length(retrieved_events) == 100

@@ -37,7 +37,7 @@ defmodule ElixirScope.Query.EngineTest do
   end
   
   describe "query optimization" do
-    test "analyzes query to determine optimal index strategy", %{store: store} do
+    test "analyzes query to determine optimal index strategy", %{store: _store} do
       # Test temporal index selection
       temporal_strategy = Engine.analyze_query([since: 1000, until: 2000])
       assert temporal_strategy.index_type == :temporal
@@ -59,7 +59,7 @@ defmodule ElixirScope.Query.EngineTest do
       assert full_scan_strategy.estimated_cost > 100
     end
     
-    test "selects optimal index for complex queries", %{store: store, pid1: pid1} do
+    test "selects optimal index for complex queries", %{store: _store, pid1: pid1} do
       # Query with multiple filters should select most selective index
       complex_query = [
         pid: pid1,
@@ -236,7 +236,7 @@ defmodule ElixirScope.Query.EngineTest do
   end
   
   # Helper functions
-  defp create_test_event(overrides \\ %{}) do
+  defp create_test_event(overrides) do
     call_id = "test_call_#{:rand.uniform(1_000_000)}"
     
     base_event = %Events.FunctionEntry{

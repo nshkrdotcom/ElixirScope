@@ -8,6 +8,8 @@ defmodule ElixirScope.Core.StateManager do
   capabilities.
   """
   
+  alias ElixirScope.Core.EventManager
+  
   @doc """
   Gets the state history for a GenServer process.
   
@@ -42,17 +44,13 @@ defmodule ElixirScope.Core.StateManager do
   """
   @spec get_state_at(pid(), integer()) :: {:ok, term()} | {:error, term()}
   def get_state_at(pid, timestamp) when is_pid(pid) and is_integer(timestamp) do
-    # TODO: Implement state reconstruction
-    # This would involve:
-    # 1. Finding the closest state snapshot before the timestamp
-    # 2. Replaying state changes from that point to the target timestamp
-    # 3. Returning the reconstructed state
-    
-    # For now, return nil state to satisfy type checker
-    # This will be replaced with actual implementation
-    case Application.get_env(:elixir_scope, :enable_state_tracking, false) do
-      true -> {:ok, nil}  # Future: actual reconstructed state
-      false -> {:error, :not_implemented_yet}
+    # Try to reconstruct state from events
+    case get_state_events_for_process(pid, timestamp) do
+      {:ok, events} ->
+        reconstruct_state_from_events(events)
+      
+      {:error, reason} ->
+        {:error, reason}
     end
   end
   
@@ -90,4 +88,36 @@ defmodule ElixirScope.Core.StateManager do
       status: :not_implemented
     }}
   end
+  
+  #############################################################################
+  # Private Helper Functions
+  #############################################################################
+  
+  defp get_state_events_for_process(pid, timestamp) do
+    # Query events for the process up to the timestamp
+    case EventManager.get_events([
+      pid: pid,
+      until: timestamp,
+      event_type: :state_change
+    ]) do
+      {:ok, events} -> {:ok, events}
+      {:error, :not_running} ->
+        # If EventManager is not running, return empty state
+        {:ok, nil}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+  
+  defp reconstruct_state_from_events(events) when is_list(events) do
+    # For now, return the most recent state change or nil
+    case Enum.reverse(events) do
+      [] -> {:ok, nil}
+      [latest_event | _] ->
+        # Extract state from the latest state change event
+        state = Map.get(latest_event, :new_state, nil)
+        {:ok, state}
+    end
+  end
+  
+  defp reconstruct_state_from_events(_), do: {:ok, nil}
 end 

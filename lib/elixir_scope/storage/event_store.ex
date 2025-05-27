@@ -9,14 +9,6 @@ defmodule ElixirScope.Storage.EventStore do
   
   use GenServer
   
-  alias ElixirScope.Storage.DataAccess
-  
-  # ETS table names
-  @primary_table :elixir_scope_events
-  @temporal_index :elixir_scope_temporal_idx
-  @process_index :elixir_scope_process_idx
-  @function_index :elixir_scope_function_idx
-  
   defstruct [
     :name,
     :primary_table,

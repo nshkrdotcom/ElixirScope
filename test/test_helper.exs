@@ -93,6 +93,101 @@ defmodule ElixirScope.TestHelpers do
   end
 
   @doc """
+  Ensures ElixirScope.Config GenServer is available for tests that depend on it.
+  
+  This function uses a more robust approach with proper synchronization
+  and longer timeouts to handle race conditions in async tests.
+  """
+  def ensure_config_available do
+    # Use a global lock to prevent race conditions between async tests
+    :global.trans({:config_setup, self()}, fn ->
+      do_ensure_config_available()
+    end, [node()], 5000)
+  end
+
+  defp do_ensure_config_available do
+    case GenServer.whereis(ElixirScope.Config) do
+      nil ->
+        # Config not running, start it with retry logic
+        start_config_with_retry(3)
+      
+      pid when is_pid(pid) ->
+        # Config is running, verify it's responsive with longer timeout
+        case test_config_responsiveness(pid) do
+          :ok -> :ok
+          :unresponsive -> restart_config_with_retry(pid, 3)
+        end
+    end
+  end
+
+  defp start_config_with_retry(0), do: {:error, :max_retries_exceeded}
+  defp start_config_with_retry(retries) do
+    case ElixirScope.Config.start_link([]) do
+      {:ok, pid} -> 
+        case wait_for_config_ready(pid, 100) do
+          :ok -> :ok
+          :timeout -> 
+            GenServer.stop(pid, :kill, 1000)
+            start_config_with_retry(retries - 1)
+        end
+      
+      {:error, {:already_started, pid}} -> 
+        # Race condition - another process started it
+        case wait_for_config_ready(pid, 100) do
+          :ok -> :ok
+          :timeout -> start_config_with_retry(retries - 1)
+        end
+      
+      {:error, _reason} -> 
+        Process.sleep(50)  # Brief pause before retry
+        start_config_with_retry(retries - 1)
+    end
+  end
+
+  defp restart_config_with_retry(_pid, 0), do: {:error, :max_retries_exceeded}
+  defp restart_config_with_retry(pid, retries) do
+    GenServer.stop(pid, :normal, 2000)
+    Process.sleep(50)  # Allow cleanup
+    start_config_with_retry(retries)
+  end
+
+  defp test_config_responsiveness(pid) do
+    try do
+      # Test with a longer timeout
+      case GenServer.call(pid, :get_config, 2000) do
+        %ElixirScope.Config{} -> :ok
+        _ -> :unresponsive
+      end
+    rescue
+      _ -> :unresponsive
+    catch
+      :exit, _ -> :unresponsive
+    end
+  end
+
+  @doc """
+  Waits for Config GenServer to become ready and responsive with configurable timeout.
+  """
+  def wait_for_config_ready(pid, max_attempts \\ 50) do
+    wait_for_config_ready_loop(pid, max_attempts, 0)
+  end
+
+  defp wait_for_config_ready_loop(_pid, max_attempts, attempts) when attempts >= max_attempts do
+    :timeout
+  end
+
+  defp wait_for_config_ready_loop(pid, max_attempts, attempts) do
+    case test_config_responsiveness(pid) do
+      :ok -> :ok
+      :unresponsive ->
+        # Exponential backoff: start with 10ms, max 100ms
+        sleep_time = min(10 * :math.pow(1.2, attempts), 100) |> round()
+        Process.sleep(sleep_time)
+        wait_for_config_ready_loop(pid, max_attempts, attempts + 1)
+    end
+  end
+
+  @doc """
   Creates a test event with minimal required fields.
   """
   def test_event(type \\ :function_entry, data \\ %{}) do

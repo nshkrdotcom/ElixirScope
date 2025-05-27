@@ -3,9 +3,11 @@ defmodule ElixirScope.Core.MessageTracker do
   Tracks message flows between processes.
   
   Provides functionality for capturing and querying message exchanges
-  between processes. This module will be enhanced in future iterations
-  to provide comprehensive message flow analysis.
+  between processes. Integrates with EventManager to provide comprehensive
+  message flow analysis using the new EventStore and Query Engine.
   """
+  
+  alias ElixirScope.Core.EventManager
   
   @doc """
   Gets message flow between two processes.
@@ -18,22 +20,18 @@ defmodule ElixirScope.Core.MessageTracker do
   
   def get_message_flow(from_pid, to_pid, opts) 
       when is_pid(from_pid) and is_pid(to_pid) do
-    # TODO: Implement message flow tracking
-    # This would involve:
-    # 1. Instrumenting message sends between processes
-    # 2. Correlating send/receive events
-    # 3. Building message flow graphs
-    # 4. Filtering by time range and other criteria
-    
-    _since = Keyword.get(opts, :since)
-    _until = Keyword.get(opts, :until)
-    _limit = Keyword.get(opts, :limit)
-    
-    # For now, return empty flow to satisfy type checker
-    # This will be replaced with actual implementation
-    case Application.get_env(:elixir_scope, :enable_message_tracking, false) do
-      true -> {:ok, []}  # Future: actual message flow
-      false -> {:error, :not_implemented_yet}
+    # Get message send and receive events between the processes
+    case get_send_events(from_pid, to_pid, opts) do
+      {:ok, send_events} ->
+        case get_receive_events(from_pid, to_pid, opts) do
+          {:ok, receive_events} ->
+                    {:ok, correlated} = correlate_message_events(send_events, receive_events)
+        {:ok, correlated}
+          
+          {:error, reason} -> {:error, reason}
+        end
+      
+      {:error, reason} -> {:error, reason}
     end
   end
   
@@ -127,5 +125,65 @@ defmodule ElixirScope.Core.MessageTracker do
   
   def disable_tracking(_pid) do
     {:error, :invalid_pid}
+  end
+  
+  #############################################################################
+  # Private Helper Functions
+  #############################################################################
+  
+  defp get_send_events(from_pid, to_pid, opts) do
+    # Query for message send events from from_pid to to_pid
+    query_opts = [
+      pid: from_pid,
+      event_type: :message_send
+    ] ++ extract_time_filters(opts)
+    
+    case EventManager.get_events(query_opts) do
+      {:ok, events} ->
+        # Filter events that are sent to the target process
+        filtered_events = Enum.filter(events, fn event ->
+          Map.get(event, :to_pid) == to_pid or 
+          Map.get(event, :receiver_pid) == to_pid
+        end)
+        {:ok, filtered_events}
+      
+      {:error, :not_running} -> {:ok, []}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+  
+  defp get_receive_events(from_pid, to_pid, opts) do
+    # Query for message receive events at to_pid from from_pid
+    query_opts = [
+      pid: to_pid,
+      event_type: :message_receive
+    ] ++ extract_time_filters(opts)
+    
+    case EventManager.get_events(query_opts) do
+      {:ok, events} ->
+        # Filter events that are received from the source process
+        filtered_events = Enum.filter(events, fn event ->
+          Map.get(event, :from_pid) == from_pid or 
+          Map.get(event, :sender_pid) == from_pid
+        end)
+        {:ok, filtered_events}
+      
+      {:error, :not_running} -> {:ok, []}
+      {:error, reason} -> {:error, reason}
+    end
+  end
+  
+  defp correlate_message_events(send_events, receive_events) do
+    # For now, just combine and sort by timestamp
+    # In the future, this could do more sophisticated correlation
+    # based on message IDs, timestamps, and content matching
+    all_events = send_events ++ receive_events
+    sorted_events = Enum.sort_by(all_events, & &1.timestamp)
+    {:ok, sorted_events}
+  end
+  
+  defp extract_time_filters(opts) do
+    opts
+    |> Keyword.take([:since, :until, :limit])
   end
 end 

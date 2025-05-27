@@ -240,7 +240,7 @@ defmodule ElixirScope.Query.Engine do
     end
   end
   
-  defp refine_cost_estimate(base_cost, stats, query) do
+  defp refine_cost_estimate(base_cost, stats, _query) do
     # Adjust cost based on actual store size
     total_events = Map.get(stats, :primary_table_size, 1000)
     

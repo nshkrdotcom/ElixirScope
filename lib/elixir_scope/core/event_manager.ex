@@ -8,6 +8,8 @@ defmodule ElixirScope.Core.EventManager do
   """
   
   alias ElixirScope.ASTRepository.RuntimeCorrelator
+  alias ElixirScope.Storage.EventStore
+  alias ElixirScope.Query.Engine
   alias ElixirScope.Utils
   
   @type event_query :: [
@@ -26,42 +28,18 @@ defmodule ElixirScope.Core.EventManager do
   """
   @spec get_events(event_query()) :: {:ok, [map()]} | {:error, term()}
   def get_events(opts \\ []) do
-    # Check if RuntimeCorrelator process exists before trying to call it
-    case Process.whereis(RuntimeCorrelator) do
-      nil ->
-        # RuntimeCorrelator is not running
-        {:error, :not_implemented_yet}
-      
-      _pid ->
-        try do
-          # Check if RuntimeCorrelator is available
-          case RuntimeCorrelator.health_check() do
-            {:ok, %{status: :healthy}} ->
-              # Get time range from query
-              {start_time, end_time} = extract_time_range(opts)
-              
-              # Query temporal events from RuntimeCorrelator
-              case RuntimeCorrelator.query_temporal_events(start_time, end_time) do
-                {:ok, events} ->
-                  # Apply additional filtering
-                  filtered_events = apply_filters(events, opts)
-                  {:ok, filtered_events}
-                
-                {:error, _reason} ->
-                  {:error, :not_implemented_yet}
-              end
-            
-            {:ok, %{status: _status}} ->
-              {:error, :not_implemented_yet}
-            
-            {:error, _reason} ->
-              # Return not_implemented_yet for consistency with existing tests
-              {:error, :not_implemented_yet}
-          end
-        rescue
-          # Handle case when RuntimeCorrelator process is not available
-          _error -> {:error, :not_implemented_yet}
+    # Try to use the new EventStore first
+    case get_default_event_store() do
+      {:ok, store} ->
+        # Use the new Query Engine and EventStore
+        case Engine.execute_query(store, opts) do
+          {:ok, events} -> {:ok, events}
+          {:error, reason} -> {:error, reason}
         end
+      
+      {:error, :no_store} ->
+        # Fall back to RuntimeCorrelator if EventStore is not available
+        fallback_to_runtime_correlator(opts)
     end
   end
   
@@ -179,4 +157,80 @@ defmodule ElixirScope.Core.EventManager do
     Enum.take(events, limit)
   end
   defp apply_limit(events, _), do: events
+  
+  defp get_default_event_store do
+    # Try to find a running EventStore process
+    # In test mode, look for test stores
+    if Application.get_env(:elixir_scope, :test_mode, false) do
+      # In test mode, try to find any test store
+      case :ets.whereis(:test_api_store_events) do
+        :undefined ->
+          # Look for any test store
+          case find_test_event_store() do
+            nil -> {:error, :no_store}
+            store -> {:ok, store}
+          end
+        _table ->
+          # Found a test store, but we need the process
+          case find_test_event_store() do
+            nil -> {:error, :no_store}
+            store -> {:ok, store}
+          end
+      end
+    else
+      # In production mode, look for the main EventStore
+      case Process.whereis(EventStore) do
+        nil -> {:error, :no_store}
+        store -> {:ok, store}
+      end
+    end
+  end
+  
+  defp find_test_event_store do
+    # Find any running EventStore process for testing
+    Process.list()
+    |> Enum.find(fn pid ->
+      case Process.info(pid, :dictionary) do
+        {:dictionary, dict} ->
+          case Keyword.get(dict, :"$initial_call") do
+            {ElixirScope.Storage.EventStore, :init, 1} -> true
+            _ -> false
+          end
+        _ -> false
+      end
+    end)
+  end
+  
+  defp fallback_to_runtime_correlator(opts) do
+    # Original RuntimeCorrelator logic as fallback
+    case Process.whereis(RuntimeCorrelator) do
+      nil ->
+        {:error, :not_running}
+      
+      _pid ->
+        try do
+          case RuntimeCorrelator.health_check() do
+            {:ok, %{status: :healthy}} ->
+              {start_time, end_time} = extract_time_range(opts)
+              
+              case RuntimeCorrelator.query_temporal_events(start_time, end_time) do
+                {:ok, events} ->
+                  filtered_events = apply_filters(events, opts)
+                  {:ok, filtered_events}
+                
+                {:error, _reason} ->
+                  {:error, :runtime_correlator_error}
+              end
+            
+            {:ok, %{status: _status}} ->
+              {:error, :runtime_correlator_unhealthy}
+            
+            {:error, _reason} ->
+              {:error, :runtime_correlator_error}
+          end
+        rescue
+          _error -> {:error, :runtime_correlator_unavailable}
+        end
+    end
+  end
 end 

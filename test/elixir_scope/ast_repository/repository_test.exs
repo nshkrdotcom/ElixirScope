@@ -4,8 +4,15 @@ defmodule ElixirScope.ASTRepository.RepositoryTest do
   
   alias ElixirScope.ASTRepository.{Repository, ModuleData, FunctionData}
   alias ElixirScope.Utils
+  alias ElixirScope.TestHelpers
 
   describe "Repository lifecycle" do
+    setup do
+      # Ensure Config GenServer is available for Repository tests
+      :ok = TestHelpers.ensure_config_available()
+      :ok
+    end
+    
     test "can create a new repository instance" do
       assert {:ok, repository} = Repository.new()
       assert repository.repository_id
@@ -36,6 +43,9 @@ defmodule ElixirScope.ASTRepository.RepositoryTest do
   
   describe "Module storage and retrieval" do
     setup do
+      # Ensure Config GenServer is available
+      :ok = TestHelpers.ensure_config_available()
+      
       {:ok, pid} = Repository.start_link(name: :test_module_repository)
       
       # Create sample AST for testing
@@ -99,6 +109,9 @@ defmodule ElixirScope.ASTRepository.RepositoryTest do
   
   describe "Function storage and retrieval" do
     setup do
+      # Ensure Config GenServer is available
+      :ok = TestHelpers.ensure_config_available()
+      
       {:ok, pid} = Repository.start_link(name: :test_function_repository)
       
       # Create sample function AST
@@ -141,6 +154,9 @@ defmodule ElixirScope.ASTRepository.RepositoryTest do
   
   describe "Runtime correlation" do
     setup do
+      # Ensure Config GenServer is available
+      :ok = TestHelpers.ensure_config_available()
+      
       {:ok, pid} = Repository.start_link(name: :test_correlation_repository)
       
       # Create module with correlation metadata
@@ -204,6 +220,9 @@ defmodule ElixirScope.ASTRepository.RepositoryTest do
   
   describe "Statistics and monitoring" do
     setup do
+      # Ensure Config GenServer is available
+      :ok = TestHelpers.ensure_config_available()
+      
       {:ok, pid} = Repository.start_link(name: :test_stats_repository)
       
       on_exit(fn -> 
@@ -249,6 +268,9 @@ defmodule ElixirScope.ASTRepository.RepositoryTest do
   
   describe "Instrumentation points" do
     setup do
+      # Ensure Config GenServer is available
+      :ok = TestHelpers.ensure_config_available()
+      
       {:ok, pid} = Repository.start_link(name: :test_instrumentation_repository)
       
       # Create module with instrumentation points
