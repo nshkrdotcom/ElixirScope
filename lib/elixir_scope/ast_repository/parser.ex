@@ -270,7 +270,7 @@ defmodule ElixirScope.ASTRepository.Parser do
     end
   end
 
-  defp create_instrumentation_point(ast_node_id, type, function_info, meta, visibility \\ :public) do
+  defp create_instrumentation_point(ast_node_id, type, function_info, meta, visibility) do
     base_point = %{
       ast_node_id: ast_node_id,
       type: determine_instrumentation_type(type, function_info, meta),

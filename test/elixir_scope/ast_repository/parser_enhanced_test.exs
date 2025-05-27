@@ -261,7 +261,7 @@ defmodule ElixirScope.ASTRepository.ParserEnhancedTest do
       sample = SampleASTs.get_sample_ast(:simple_genserver)
       {:ok, enhanced_ast} = Parser.assign_node_ids(sample.ast)
       {:ok, instrumentation_points} = Parser.extract_instrumentation_points(enhanced_ast)
-      {:ok, correlation_index} = Parser.build_correlation_index(enhanced_ast, instrumentation_points)
+      {:ok, _correlation_index} = Parser.build_correlation_index(enhanced_ast, instrumentation_points)
       
       # When: We set up correlator with enhanced data
       repo = Helpers.setup_test_repository()
