@@ -3,8 +3,8 @@ ExUnit.start()
 # Configure test environment
 Application.put_env(:elixir_scope, :test_mode, true)
 
-# Ensure clean state for each test
-ExUnit.configure(exclude: [:skip])
+# Ensure clean state for each test and exclude live API tests by default
+ExUnit.configure(exclude: [:skip, :live_api])
 
 # Compile test support modules
 Code.compile_file("test/support/test_phoenix_app.ex")

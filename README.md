@@ -346,10 +346,10 @@ ElixirScope has comprehensive testing with **723 tests passing, 0 failures** and
 ### **Test Commands**
 
 ```bash
-# Main test suite (recommended) - bypasses slow LLM API tests
-mix test.trace
+# Default test command - excludes live API tests, shows full test names
+mix test
 
-# All tests including integration tests
+# All tests including live API tests (may hang without API keys)
 mix test.all
 
 # Fast tests (parallelized)  
@@ -360,6 +360,9 @@ mix test.mock          # Mock provider only
 mix test.gemini        # Live Gemini API tests
 mix test.vertex        # Live Vertex AI tests
 mix test.live          # All live API tests
+
+# Legacy alias (same as default mix test)
+mix test.trace
 
 # Performance validation
 mix test.performance
@@ -477,7 +480,7 @@ We welcome contributions! ElixirScope is built with a solid foundation and clear
 2. Set up development environment:
    ```bash
    mix deps.get
-   mix test.trace  # Ensure all tests pass (723 tests)
+   mix test  # Ensure all tests pass (723 tests, excludes live API tests)
    ```
 3. Try the Cinema Demo:
    ```bash

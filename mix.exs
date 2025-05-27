@@ -4,12 +4,14 @@ defmodule ElixirScope.MixProject do
   def project do
     [
       app: :elixir_scope,
-      version: "0.1.0",
+      version: "0.0.1",
       elixir: "~> 1.15",
-      start_permanent: Mix.env() == :prod,
+      start_permanent: Mix.env() == :dev,
+      package: package(),
       deps: deps(),
+      docs: docs(),
       aliases: aliases(),
-      
+
       # Test configuration
       test_coverage: [tool: ExCoveralls],
       preferred_cli_env: [
@@ -17,6 +19,7 @@ defmodule ElixirScope.MixProject do
         "coveralls.detail": :test,
         "coveralls.post": :test,
         "coveralls.html": :test,
+        test: :test,
         "test.trace": :test,
         "test.live": :test,
         "test.all": :test,
@@ -36,6 +39,16 @@ defmodule ElixirScope.MixProject do
     ]
   end
 
+  defp package do
+    [
+      name: "ElixirScope",
+      licenses: ["MIT"],
+      links: %{"GitHub" => "https://github.com/nshkrdotcom/ElixirScope"},
+      maintainers: ["NSHkr"],
+      files: ~w(lib mix.exs README.md LICENSE)
+    ]
+  end
+
   defp deps do
     [
       # Core Dependencies
@@ -43,52 +56,63 @@ defmodule ElixirScope.MixProject do
       {:plug, "~> 1.14", optional: true},
       {:phoenix, "~> 1.7", optional: true},
       {:phoenix_live_view, "~> 0.18", optional: true},
-      
+
       # Testing & Quality
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: :test},
       {:dialyxir, "~> 1.4", only: [:dev], runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      
+
       # Property-based testing for concurrency testing
       {:stream_data, "~> 0.5", only: :test},
-      
+
       # Benchmarking for performance testing
       {:benchee, "~> 1.1", only: :test},
-      
+
       # JSON for configuration and serialization
       {:jason, "~> 1.4"},
-      
+
       # HTTP client for LLM providers
       {:httpoison, "~> 2.0"},
-      
+
       # JSON Web Token library
       {:joken, "~> 2.6"}
     ]
   end
 
+  defp docs do
+    [
+      main: "readme",
+      extras: ["README.md"]
+    ]
+  end
+
   defp aliases do
     [
+      # Default test command excludes live API tests and shows full names
+      test: ["test --trace --exclude live_api"],
+
       # Custom test aliases for better output
       "test.trace": ["test --trace --exclude live_api"],
       "test.live": ["test --only live_api"],
       "test.all": ["test --include live_api"],
       "test.fast": ["test --exclude live_api --max-cases 48"],
-      
+
       # Provider-specific test aliases
       "test.gemini": ["test --trace test/elixir_scope/ai/llm/providers/gemini_live_test.exs"],
       "test.vertex": ["test --trace test/elixir_scope/ai/llm/providers/vertex_live_test.exs"],
       "test.mock": ["test --trace test/elixir_scope/ai/llm/providers/mock_test.exs"],
-      
+
       # LLM-focused test aliases
       "test.llm": ["test --trace --exclude live_api test/elixir_scope/ai/llm/"],
       "test.llm.live": ["test --trace --only live_api test/elixir_scope/ai/llm/"]
     ]
   end
-  
+
   def cli do
     [
       preferred_envs: [
+        test: :test,
         "test.trace": :test,
         "test.live": :test,
         "test.all": :test,
@@ -101,4 +125,4 @@ defmodule ElixirScope.MixProject do
       ]
     ]
   end
-end 
+end
