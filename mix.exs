@@ -7,6 +7,7 @@ defmodule ElixirScope.MixProject do
       version: "0.0.1",
       elixir: "~> 1.15",
       start_permanent: Mix.env() == :dev,
+      description: description(),
       package: package(),
       deps: deps(),
       docs: docs(),
@@ -39,9 +40,13 @@ defmodule ElixirScope.MixProject do
     ]
   end
 
+  defp description() do
+    "ElixirScope is a next-generation debugging and observability platform for Elixir applications, designed to provide an "Execution Cinema" experience through deep, compile-time AST instrumentation guided by AI-powered analysis."
+  end
+
   defp package do
     [
-      name: "ElixirScope",
+      name: "elixir_scope",
       licenses: ["MIT"],
       links: %{"GitHub" => "https://github.com/nshkrdotcom/ElixirScope"},
       maintainers: ["NSHkr"],
