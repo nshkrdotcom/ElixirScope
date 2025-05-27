@@ -426,7 +426,7 @@ mix test.live
 
 ## 🗺️ **Development Roadmap**
 
-### **✅ Phase 1: Foundation Complete (December 2024)**
+### **✅ Phase 1: Foundation Complete (May 2025)**
 
 #### **Major Achievements**
 - ✅ Complete Cinema Demo with all 6 scenarios working
@@ -437,7 +437,7 @@ mix test.live
 - ✅ Comprehensive test suite (723 tests passing)
 - ✅ Production-ready core components
 
-### **Phase 2: Web Interface & Enhanced Features (Q1 2025)**
+### **Phase 2: Web Interface & Enhanced Features (Q2 2025)**
 
 #### **Immediate Priorities**
 - [ ] Phoenix web interface for Cinema Debugger
