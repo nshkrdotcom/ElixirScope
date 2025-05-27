@@ -25,7 +25,13 @@ defmodule ElixirScope.ASTRepository.RepositoryTest do
       assert Process.alive?(pid)
       
       # Clean up
-      GenServer.stop(pid)
+      try do
+        GenServer.stop(pid)
+      rescue
+        _ -> :ok  # Process already dead or stopping
+      catch
+        :exit, _ -> :ok  # Process already dead or stopping
+      end
     end
     
     test "repository health check works" do
@@ -37,7 +43,13 @@ defmodule ElixirScope.ASTRepository.RepositoryTest do
       assert is_map(health.memory_usage)
       
       # Clean up
-      GenServer.stop(pid)
+      try do
+        GenServer.stop(pid)
+      rescue
+        _ -> :ok  # Process already dead or stopping
+      catch
+        :exit, _ -> :ok  # Process already dead or stopping
+      end
     end
   end
   
@@ -61,8 +73,14 @@ defmodule ElixirScope.ASTRepository.RepositoryTest do
       ])
       
       on_exit(fn -> 
-        if Process.alive?(pid) do
-          GenServer.stop(pid)
+        try do
+          if Process.alive?(pid) do
+            GenServer.stop(pid)
+          end
+        rescue
+          _ -> :ok  # Process already dead or stopping
+        catch
+          :exit, _ -> :ok  # Process already dead or stopping
         end
       end)
       
@@ -127,8 +145,14 @@ defmodule ElixirScope.ASTRepository.RepositoryTest do
       ])
       
       on_exit(fn -> 
-        if Process.alive?(pid) do
-          GenServer.stop(pid)
+        try do
+          if Process.alive?(pid) do
+            GenServer.stop(pid)
+          end
+        rescue
+          _ -> :ok  # Process already dead or stopping
+        catch
+          :exit, _ -> :ok  # Process already dead or stopping
         end
       end)
       
@@ -175,8 +199,14 @@ defmodule ElixirScope.ASTRepository.RepositoryTest do
       :ok = Repository.store_module(pid, module_data)
       
       on_exit(fn -> 
-        if Process.alive?(pid) do
-          GenServer.stop(pid)
+        try do
+          if Process.alive?(pid) do
+            GenServer.stop(pid)
+          end
+        rescue
+          _ -> :ok  # Process already dead or stopping
+        catch
+          :exit, _ -> :ok  # Process already dead or stopping
         end
       end)
       
@@ -226,8 +256,14 @@ defmodule ElixirScope.ASTRepository.RepositoryTest do
       {:ok, pid} = Repository.start_link(name: :test_stats_repository)
       
       on_exit(fn -> 
-        if Process.alive?(pid) do
-          GenServer.stop(pid)
+        try do
+          if Process.alive?(pid) do
+            GenServer.stop(pid)
+          end
+        rescue
+          _ -> :ok  # Process already dead or stopping
+        catch
+          :exit, _ -> :ok  # Process already dead or stopping
         end
       end)
       
@@ -291,8 +327,14 @@ defmodule ElixirScope.ASTRepository.RepositoryTest do
       :ok = Repository.store_module(pid, module_data)
       
       on_exit(fn -> 
-        if Process.alive?(pid) do
-          GenServer.stop(pid)
+        try do
+          if Process.alive?(pid) do
+            GenServer.stop(pid)
+          end
+        rescue
+          _ -> :ok  # Process already dead or stopping
+        catch
+          :exit, _ -> :ok  # Process already dead or stopping
         end
       end)
       

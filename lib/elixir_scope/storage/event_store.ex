@@ -92,8 +92,8 @@ defmodule ElixirScope.Storage.EventStore do
   
   @impl true
   def handle_call({:store_event, event}, _from, state) do
-    # Generate unique key for primary storage
-    event_key = {state.event_counter, event.timestamp, event.pid}
+    # Generate simpler unique key for primary storage
+    event_key = state.event_counter
     
     # Store in primary table
     :ets.insert(state.primary_table, {event_key, event})
@@ -149,22 +149,34 @@ defmodule ElixirScope.Storage.EventStore do
   #############################################################################
   
   defp update_indexes(state, event_key, event) do
-    # Temporal index: {timestamp, event_key}
-    :ets.insert(state.temporal_index, {event.timestamp, event_key})
+    # Batch all index updates into a single operation list
+    index_updates = [
+      # Temporal index: {timestamp, event_key}
+      {state.temporal_index, {event.timestamp, event_key}},
+      # Process index: {pid, event_key}
+      {state.process_index, {event.pid, event_key}}
+    ]
     
-    # Process index: {pid, event_key}
-    :ets.insert(state.process_index, {event.pid, event_key})
-    
-    # Function index: {function_signature, event_key}
-    if Map.has_key?(event, :module) and Map.has_key?(event, :function) do
-      function_sig = "#{event.module}.#{event.function}/#{Map.get(event, :arity, 0)}"
-      :ets.insert(state.function_index, {function_sig, event_key})
+    # Add function index if module and function are present
+    index_updates = case event do
+      %{module: module, function: function} when not is_nil(module) and not is_nil(function) ->
+        arity = Map.get(event, :arity, 0)
+        function_sig = {module, function, arity}  # Use tuple instead of string
+        [{state.function_index, {function_sig, event_key}} | index_updates]
+      _ ->
+        index_updates
     end
     
-    # Event type index (using function index table for simplicity)
-    if Map.has_key?(event, :event_type) do
-      :ets.insert(state.function_index, {event.event_type, event_key})
+    # Add event type index if present
+    index_updates = case Map.get(event, :event_type) do
+      nil -> index_updates
+      event_type -> [{state.function_index, {event_type, event_key}} | index_updates]
     end
+    
+    # Perform all inserts
+    Enum.each(index_updates, fn {table, record} ->
+      :ets.insert(table, record)
+    end)
   end
   
   defp execute_query(state, filters) do
