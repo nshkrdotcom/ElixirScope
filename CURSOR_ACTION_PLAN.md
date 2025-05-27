@@ -379,3 +379,255 @@ At the end of each day:
 ---
 
 **This action plan focuses on delivering the core AST value proposition without performance infrastructure, providing a solid foundation for Cinema Debugger and LLM integration.** 
+
+---
+
+## 🔮 **DETAILED NEXT STEPS: DAY 2 TEMPORALBRIDGE IMPLEMENTATION**
+
+### **🏗️ ARCHITECTURAL REVIEW & VALIDATION**
+
+#### **Current Architecture Assessment**
+Before implementing TemporalBridge, I need to validate the architectural soundness of our approach:
+
+**✅ Strengths Identified:**
+1. **Clean Separation**: AST Parser (Day 1) provides clean node ID assignment without coupling to temporal concerns
+2. **Correlation Foundation**: The correlation_id -> ast_node_id mapping provides the bridge between compile-time and runtime
+3. **Existing Integration**: Repository and RuntimeCorrelator already handle event correlation, we're extending not replacing
+4. **Test Infrastructure**: Comprehensive test support structure is in place for validation
+
+**🔍 Architectural Questions to Resolve:**
+1. **Temporal Index Design**: Should temporal indexing be:
+   - **Option A**: Separate temporal index alongside existing correlation index?
+   - **Option B**: Enhanced correlation index with temporal dimensions?
+   - **Option C**: Hybrid approach with temporal metadata in correlation entries?
+
+2. **Event Storage Strategy**: How should temporal events be stored:
+   - **Option A**: Extend existing Repository with temporal collections?
+   - **Option B**: Separate TemporalStorage with references to Repository?
+   - **Option C**: Unified storage with temporal and AST dimensions?
+
+3. **Cinema Debugger Integration**: What temporal primitives does Cinema Debugger need:
+   - Time-range queries for "show me what happened between T1 and T2"
+   - Event ordering for "show me the sequence that led to this state"
+   - Temporal correlation for "show me the AST nodes active during this time window"
+   - State reconstruction for "what was the system state at time T"
+
+#### **Architectural Decision Framework**
+I will evaluate each design decision against these criteria:
+1. **Simplicity**: Minimize complexity while meeting requirements
+2. **Performance**: Efficient temporal queries without sacrificing existing performance
+3. **Extensibility**: Foundation for Cinema Debugger without over-engineering
+4. **Integration**: Seamless integration with existing AST and event systems
+5. **Testability**: Clear interfaces that can be thoroughly tested
+
+### **🎯 TEMPORALBRIDGE DESIGN STRATEGY**
+
+#### **Core Design Principles**
+1. **Temporal-First Design**: Time is a first-class citizen in all data structures
+2. **AST Correlation Preservation**: Maintain existing AST correlation while adding temporal dimension
+3. **Event Ordering Guarantees**: Ensure temporal ordering is preserved and queryable
+4. **Cinema Debugger Foundation**: Design with time-travel debugging requirements in mind
+5. **Backward Compatibility**: Existing functionality continues to work unchanged
+
+#### **Proposed TemporalBridge Architecture**
+
+**Primary Components:**
+1. **TemporalIndex**: Time-ordered index of events with AST correlation
+2. **TemporalCorrelator**: Correlates events to AST nodes with temporal context
+3. **TemporalQuery**: Query interface for time-based AST-runtime queries
+4. **TemporalStorage**: Storage abstraction for temporal event data
+
+**Data Flow Design:**
+```
+Runtime Event → TemporalCorrelator → TemporalIndex → TemporalStorage
+                      ↓
+              AST Node Correlation (from Day 1 Parser)
+                      ↓
+              Temporal Event with AST Context
+```
+
+**Key Interfaces to Design:**
+1. `correlate_temporal_event(event, timestamp, ast_context)` - Core correlation function
+2. `get_events_in_range(start_time, end_time, ast_filter)` - Time-range queries
+3. `get_event_sequence(correlation_id, time_window)` - Event sequence reconstruction
+4. `build_temporal_index(events)` - Index construction and maintenance
+
+### **🧪 TEST-DRIVEN DEVELOPMENT STRATEGY**
+
+#### **Test Categories for TemporalBridge**
+1. **Unit Tests**: Individual component functionality
+2. **Integration Tests**: TemporalBridge + existing AST/Repository integration
+3. **Temporal Property Tests**: Time-ordering invariants and consistency
+4. **Cinema Debugger Foundation Tests**: Time-travel debugging primitives
+
+#### **Specific Test Scenarios to Implement**
+
+**Temporal Correlation Tests:**
+- Event correlation with precise timestamps
+- Multiple events at same timestamp handling
+- Event ordering preservation across system restarts
+- Correlation accuracy under high-frequency events
+- AST node correlation with temporal context
+
+**Time-Range Query Tests:**
+- Query events in specific time windows
+- Query AST nodes active during time ranges
+- Query event sequences leading to specific states
+- Performance of temporal queries on large datasets
+- Edge cases: empty ranges, single-point queries, overlapping ranges
+
+**Integration Tests:**
+- TemporalBridge + Repository integration
+- TemporalBridge + RuntimeCorrelator integration
+- TemporalBridge + AST Parser correlation index integration
+- End-to-end: AST compilation → Runtime events → Temporal correlation → Query
+
+**Property-Based Tests:**
+- Temporal ordering invariants: if event A happens before event B, temporal index reflects this
+- Correlation bijection: every temporal event can be traced back to AST node
+- Time consistency: temporal queries return consistent results regardless of query order
+- Index integrity: temporal index remains consistent under concurrent operations
+
+### **🔧 IMPLEMENTATION APPROACH**
+
+#### **Phase 1: Core TemporalBridge Structure (TDD)**
+1. **Write failing tests** for basic temporal correlation
+2. **Implement minimal TemporalBridge module** to pass tests
+3. **Refactor** for clean interfaces and proper abstractions
+4. **Validate** integration with existing AST correlation
+
+#### **Phase 2: Temporal Index Implementation**
+1. **Design temporal index data structure** - likely ETS-based for performance
+2. **Implement time-ordered insertion** with AST correlation metadata
+3. **Add temporal query capabilities** - range queries, sequence queries
+4. **Test temporal index performance** and memory characteristics
+
+#### **Phase 3: Integration with Existing Systems**
+1. **Extend Repository** to support temporal queries
+2. **Enhance RuntimeCorrelator** with temporal awareness
+3. **Update event processing pipeline** to include temporal correlation
+4. **Validate backward compatibility** - all existing tests must pass
+
+#### **Phase 4: Cinema Debugger Foundation**
+1. **Implement time-travel query primitives**:
+   - `get_system_state_at(timestamp)` - reconstruct system state
+   - `get_execution_path_to(event)` - trace execution leading to event
+   - `get_ast_nodes_active_during(time_range)` - active AST nodes in time window
+2. **Test temporal consistency** under various scenarios
+3. **Validate performance** for Cinema Debugger use cases
+
+### **🔍 ARCHITECTURAL VALIDATION CHECKPOINTS**
+
+#### **Checkpoint 1: Interface Design Review**
+Before implementing, validate:
+- **API Consistency**: TemporalBridge APIs follow existing ElixirScope patterns
+- **Data Structure Soundness**: Temporal index design supports required queries efficiently
+- **Integration Points**: Clear interfaces with Repository, RuntimeCorrelator, and AST Parser
+- **Error Handling**: Comprehensive error scenarios identified and handled
+
+#### **Checkpoint 2: Core Implementation Review**
+After basic implementation:
+- **Temporal Accuracy**: Events are correctly ordered and correlated
+- **AST Integration**: AST node correlation works seamlessly with temporal data
+- **Performance Baseline**: Basic performance characteristics are acceptable
+- **Test Coverage**: Core functionality is thoroughly tested
+
+#### **Checkpoint 3: Integration Validation**
+After system integration:
+- **Backward Compatibility**: All existing tests pass without modification
+- **End-to-End Workflows**: Complete AST → Runtime → Temporal correlation works
+- **Data Consistency**: Temporal and AST data remain consistent across operations
+- **Error Resilience**: System handles temporal correlation failures gracefully
+
+#### **Checkpoint 4: Cinema Debugger Readiness**
+Before completing Day 2:
+- **Time-Travel Primitives**: Basic time-travel debugging capabilities work
+- **Query Performance**: Temporal queries perform adequately for debugging use cases
+- **State Reconstruction**: System can reconstruct past states from temporal data
+- **Foundation Completeness**: Solid foundation for Cinema Debugger integration
+
+### **🚨 RISK MITIGATION STRATEGIES**
+
+#### **Technical Risks & Mitigation**
+1. **Temporal Index Performance Risk**:
+   - **Risk**: Temporal queries become too slow for real-time debugging
+   - **Mitigation**: Implement incremental indexing, benchmark early, use ETS for performance
+   - **Fallback**: Simplified temporal index with basic time-range support
+
+2. **Memory Usage Risk**:
+   - **Risk**: Temporal storage grows unbounded in long-running systems
+   - **Mitigation**: Implement temporal data retention policies, test memory characteristics
+   - **Fallback**: Simple LRU eviction for temporal data
+
+3. **Integration Complexity Risk**:
+   - **Risk**: TemporalBridge integration breaks existing functionality
+   - **Mitigation**: Comprehensive integration testing, backward compatibility validation
+   - **Fallback**: Temporal features as optional add-on to existing system
+
+4. **Temporal Consistency Risk**:
+   - **Risk**: Temporal ordering becomes inconsistent under concurrent operations
+   - **Mitigation**: Property-based testing for temporal invariants, careful concurrency design
+   - **Fallback**: Simplified temporal model with eventual consistency
+
+#### **Architectural Risks & Mitigation**
+1. **Over-Engineering Risk**:
+   - **Risk**: Building too complex a temporal system for current needs
+   - **Mitigation**: Focus on Cinema Debugger requirements, implement minimally viable temporal features
+   - **Validation**: Regular architecture review against actual requirements
+
+2. **Under-Engineering Risk**:
+   - **Risk**: Temporal foundation insufficient for Cinema Debugger needs
+   - **Mitigation**: Research Cinema Debugger requirements thoroughly, design extensible interfaces
+   - **Validation**: Prototype key Cinema Debugger use cases
+
+### **📊 SUCCESS METRICS FOR DAY 2**
+
+#### **Functional Success Metrics**
+- [ ] **Temporal Correlation**: Events correctly correlated with timestamps and AST nodes
+- [ ] **Time-Range Queries**: Can query events and AST nodes within time ranges
+- [ ] **Event Ordering**: Temporal ordering preserved and queryable
+- [ ] **Integration**: TemporalBridge integrates seamlessly with existing systems
+- [ ] **Backward Compatibility**: All existing tests continue to pass
+
+#### **Quality Success Metrics**
+- [ ] **Test Coverage**: >90% test coverage for TemporalBridge functionality
+- [ ] **Performance**: Temporal queries complete within acceptable time bounds
+- [ ] **Memory**: Temporal storage memory usage is predictable and bounded
+- [ ] **Reliability**: TemporalBridge handles error scenarios gracefully
+- [ ] **Documentation**: Clear documentation for TemporalBridge APIs and usage
+
+#### **Architecture Success Metrics**
+- [ ] **Simplicity**: TemporalBridge design is understandable and maintainable
+- [ ] **Extensibility**: Foundation supports Cinema Debugger requirements
+- [ ] **Consistency**: TemporalBridge follows ElixirScope architectural patterns
+- [ ] **Integration**: Clean interfaces with existing components
+- [ ] **Future-Proof**: Design accommodates anticipated future requirements
+
+### **🎯 DAY 2 EXECUTION PLAN**
+
+#### **Morning Session (2-3 hours): Architecture & Test Design**
+1. **Finalize TemporalBridge architecture** based on above analysis
+2. **Design comprehensive test suite** for temporal functionality
+3. **Create test fixtures** for temporal scenarios
+4. **Validate integration points** with existing systems
+
+#### **Afternoon Session (3-4 hours): Core Implementation**
+1. **Implement TemporalBridge module** using TDD approach
+2. **Build temporal index functionality** with time-ordered operations
+3. **Add temporal correlation capabilities** with AST integration
+4. **Test core temporal functionality** thoroughly
+
+#### **Evening Session (1-2 hours): Integration & Validation**
+1. **Integrate TemporalBridge** with Repository and RuntimeCorrelator
+2. **Run comprehensive test suite** including existing tests
+3. **Validate backward compatibility** and performance characteristics
+4. **Document TemporalBridge APIs** and update action plan
+
+#### **Success Validation**
+At end of Day 2:
+- All TemporalBridge tests passing
+- All existing tests continue to pass
+- Basic Cinema Debugger primitives working
+- Foundation ready for Day 3 InstrumentationMapper
+
+This detailed planning ensures we build a sound temporal architecture that serves as a solid foundation for Cinema Debugger while maintaining the simplicity and reliability of the existing system. 

@@ -1,5 +1,4 @@
 # .cursorrules
-ignore_dir: docs
 
 # Testing: Use `mix test.trace` by default to bypass slow live LLM API tests
 # Only use `mix test.all` or `mix test.live` when specifically testing LLM integrations
