@@ -1,8 +1,8 @@
-# AST Repository API Specification
+# AST Repository Implementation Guide
 
 ## Overview
 
-This document provides detailed API specifications for the enhanced AST Repository components. Each API includes function signatures, parameters, return values, error conditions, and usage examples.
+This document provides step-by-step implementation guidance for building the enhanced AST Repository (Phase 3, Week 1-2). It includes detailed implementation steps, code examples, testing strategies, and integration patterns.
 
 ## Repository Core API
 
