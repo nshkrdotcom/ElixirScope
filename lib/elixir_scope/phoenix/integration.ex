@@ -274,11 +274,12 @@ defmodule ElixirScope.Phoenix.Integration do
   end
 
   defp put_correlation_id(conn, correlation_id) do
-    if Code.ensure_loaded?(Plug.Conn) do
-      Plug.Conn.put_private(conn, :elixir_scope_correlation_id, correlation_id)
-    else
-      # Fallback if Plug.Conn is not available
-      %{conn | private: Map.put(conn.private || %{}, :elixir_scope_correlation_id, correlation_id)}
+    try do
+      apply(Plug.Conn, :put_private, [conn, :elixir_scope_correlation_id, correlation_id])
+    rescue
+      UndefinedFunctionError ->
+        # Fallback if Plug.Conn is not available
+        %{conn | private: Map.put(conn.private || %{}, :elixir_scope_correlation_id, correlation_id)}
     end
   end
 
@@ -306,14 +307,15 @@ defmodule ElixirScope.Phoenix.Integration do
   end
 
   defp response_size(conn) do
-    if Code.ensure_loaded?(Plug.Conn) do
-      case Plug.Conn.get_resp_header(conn, "content-length") do
+    try do
+      case apply(Plug.Conn, :get_resp_header, [conn, "content-length"]) do
         [size] -> String.to_integer(size)
         _ -> byte_size(conn.resp_body || "")
       end
-    else
-      # Fallback if Plug.Conn is not available
-      byte_size(conn.resp_body || "")
+    rescue
+      UndefinedFunctionError ->
+        # Fallback if Plug.Conn is not available
+        byte_size(conn.resp_body || "")
     end
   end
 
