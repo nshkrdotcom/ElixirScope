@@ -1166,6 +1166,6 @@ end
 
 ---
 
-**For more detailed examples and advanced usage patterns, see the [Cinema Demo Application](test_apps/cinema_demo/) and [Integration Tests](test/elixir_scope/capture/instrumentation_runtime_temporal_integration_test.exs).**
+**For more detailed examples and advanced usage patterns, see the [Cinema Demo Application](https://github.com/nshkrdotcom/ElixirScope/tree/main/test_apps/cinema_demo) and [Integration Tests](https://github.com/nshkrdotcom/ElixirScope/blob/main/test/elixir_scope/capture/instrumentation_runtime_integration_test.exs).**
 
 **Support**: For issues and questions, please refer to the project repository and documentation. 
