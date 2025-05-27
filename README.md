@@ -55,7 +55,7 @@ end
 
 ```mermaid
 graph TB
-    subgraph CT["Compile&nbsp;Time"]
+    subgraph CT["Compile Time"]
         AST[Source AST]
         ANALYZER[AI Analyzer]
         TRANS[AST Transformer]
@@ -87,9 +87,9 @@ graph TB
     REPO --> QUERY
     QUERY --> AI
     
-    style CT fill:#031121
-    style RT fill:#031121
-    style A fill:#031121
+    style CT fill:#031121,stroke:#ccc,color:#fff
+    style RT fill:#031121,stroke:#ccc,color:#fff
+    style A fill:#031121,stroke:#ccc,color:#fff
     style AST fill:#4a148c,stroke:#1a237e,stroke-width:2px,color:#fff
     style ANALYZER fill:#1565c0,stroke:#0d47a1,stroke-width:2px,color:#fff
     style TRANS fill:#2e7d32,stroke:#1b5e20,stroke-width:2px,color:#fff
@@ -100,6 +100,17 @@ graph TB
     style CINEMA fill:#1976d2,stroke:#0d47a1,stroke-width:2px,color:#fff
     style QUERY fill:#388e3c,stroke:#1b5e20,stroke-width:2px,color:#fff
     style AI fill:#7b1fa2,stroke:#4a148c,stroke-width:2px,color:#fff
+
+    linkStyle 0 stroke:#4a148c,stroke-width:2px
+    linkStyle 1 stroke:#1565c0,stroke-width:2px
+    linkStyle 2 stroke:#2e7d32,stroke-width:2px
+    linkStyle 3 stroke:#f57c00,stroke-width:2px
+    linkStyle 4 stroke:#c62828,stroke-width:2px
+    linkStyle 5 stroke:#6a1b9a,stroke-width:2px
+    linkStyle 6 stroke:#00695c,stroke-width:2px
+    linkStyle 7 stroke:#00695c,stroke-width:2px
+    linkStyle 8 stroke:#f57c00,stroke-width:2px
+    linkStyle 9 stroke:#388e3c,stroke-width:2px
 ```
 
 ## 🎬 Try the Cinema Demo
