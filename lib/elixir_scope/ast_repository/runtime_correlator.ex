@@ -150,19 +150,44 @@ defmodule ElixirScope.ASTRepository.RuntimeCorrelator do
   
   @impl true
   def init(opts) do
+    Logger.info("🔧 RuntimeCorrelator.init starting with opts: #{inspect(opts)}")
+    Logger.info("🔍 Checking Config GenServer availability...")
+    
+    config_pid = GenServer.whereis(ElixirScope.Config)
+    Logger.info("📍 Config GenServer PID: #{inspect(config_pid)}")
+    
+    if config_pid do
+      Logger.info("✅ Config GenServer found, testing responsiveness...")
+      try do
+        config_result = ElixirScope.Config.get([:ast_repository])
+        Logger.info("✅ Config retrieved successfully: #{inspect(config_result)}")
+      rescue
+        error ->
+          Logger.error("❌ Config GenServer unresponsive: #{inspect(error)}")
+          Logger.error("📍 Error details: #{inspect(__STACKTRACE__)}")
+          {:stop, {:config_unresponsive, error}}
+      end
+    else
+      Logger.error("❌ Config GenServer not found!")
+      Logger.error("📍 Available registered processes: #{inspect(Process.registered())}")
+      {:stop, :config_not_found}
+    end
+    
     repository_pid = Keyword.get(opts, :repository_pid)
+    Logger.info("🏗️ Building config with repository_pid: #{inspect(repository_pid)}")
     config = build_config(opts)
     
+    Logger.info("🔧 Creating correlator state...")
     case create_correlator_state(repository_pid, config) do
       {:ok, state} ->
         # Schedule periodic cleanup
         schedule_cleanup(state.cleanup_interval)
         
-        Logger.info("RuntimeCorrelator started with repository: #{inspect(repository_pid)}")
+        Logger.info("✅ RuntimeCorrelator started successfully with repository: #{inspect(repository_pid)}")
         {:ok, state}
       
       {:error, reason} ->
-        Logger.error("Failed to initialize RuntimeCorrelator: #{inspect(reason)}")
+        Logger.error("❌ Failed to initialize RuntimeCorrelator: #{inspect(reason)}")
         {:stop, reason}
     end
   end

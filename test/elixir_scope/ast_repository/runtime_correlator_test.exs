@@ -1,22 +1,108 @@
 # test/elixir_scope/ast_repository/runtime_correlator_test.exs
 defmodule ElixirScope.ASTRepository.RuntimeCorrelatorTest do
   use ExUnit.Case
+  require Logger
   
   alias ElixirScope.ASTRepository.RuntimeCorrelator
   alias ElixirScope.ASTRepository.TestSupport.Helpers
   alias ElixirScope.Utils
+  
+  # Helper functions for debugging intermittent failures
+  defp ensure_config_available do
+    case GenServer.whereis(ElixirScope.Config) do
+      nil ->
+        Logger.info("🔄 Starting Config GenServer for test...")
+        {:ok, _pid} = ElixirScope.Config.start_link([])
+        wait_for_config_ready()
+      pid ->
+        Logger.info("✅ Config GenServer already running: #{inspect(pid)}")
+        # Verify it's responsive
+        try do
+          ElixirScope.Config.get()
+          :ok
+        rescue
+          error ->
+            Logger.warning("⚠️ Config GenServer unresponsive, restarting: #{inspect(error)}")
+            GenServer.stop(pid)
+            {:ok, _pid} = ElixirScope.Config.start_link([])
+            wait_for_config_ready()
+        end
+    end
+  end
+
+  defp wait_for_config_ready(attempts \\ 0) do
+    if attempts > 50 do
+      raise "Config GenServer failed to become ready after 50 attempts"
+    end
+    
+    try do
+      ElixirScope.Config.get()
+      Logger.info("✅ Config GenServer ready after #{attempts} attempts")
+      :ok
+    rescue
+      _ ->
+        Process.sleep(10)
+        wait_for_config_ready(attempts + 1)
+    end
+  end
+
+  defp monitor_test_processes(context) do
+    config_pid = GenServer.whereis(ElixirScope.Config)
+    repository_pid = context[:repository]
+    correlator_pid = context[:correlator]
+    
+    [config_pid, repository_pid, correlator_pid]
+    |> Enum.filter(&is_pid/1)
+    |> Enum.each(fn pid ->
+      ref = Process.monitor(pid)
+      spawn(fn ->
+        receive do
+          {:DOWN, ^ref, :process, ^pid, reason} ->
+            Logger.error("💀 Process #{inspect(pid)} died during test: #{inspect(reason)}")
+            Logger.error("📍 Test: #{inspect(self())}")
+        end
+      end)
+    end)
+  end
 
   describe "AST-Runtime correlation accuracy" do
     setup do
+      require Logger
+      Logger.info("🧪 RuntimeCorrelatorTest setup starting...")
+      Logger.info("📊 Initial state check:")
+      Logger.info("  - Config PID: #{inspect(GenServer.whereis(ElixirScope.Config))}")
+      Logger.info("  - Registered processes: #{inspect(Process.registered())}")
+      Logger.info("  - Application status: #{inspect(Application.started_applications())}")
+      
+      # Ensure Config is available
+      ensure_config_available()
+      
+      Logger.info("🏗️ Starting Repository...")
       # Setup repository and correlator
       repo = Helpers.setup_test_repository(with_samples: true)
+      Logger.info("✅ Repository started: #{inspect(repo)}")
+      
+      Logger.info("🔗 Starting RuntimeCorrelator...")
       {:ok, correlator} = RuntimeCorrelator.start_link(repository_pid: repo)
+      Logger.info("✅ RuntimeCorrelator started: #{inspect(correlator)}")
+      
+      # Monitor critical processes
+      monitor_test_processes(%{repository: repo, correlator: correlator})
       
       on_exit(fn ->
-        if Process.alive?(correlator), do: GenServer.stop(correlator)
-        if Process.alive?(repo), do: GenServer.stop(repo)
+        Logger.info("🧹 Test cleanup starting...")
+        if Process.alive?(correlator) do
+          GenServer.stop(correlator)
+          Logger.info("🛑 Stopped RuntimeCorrelator: #{inspect(correlator)}")
+        end
+        if Process.alive?(repo) do
+          GenServer.stop(repo)
+          Logger.info("🛑 Stopped Repository: #{inspect(repo)}")
+        end
+        Logger.info("✅ Test cleanup completed")
       end)
       
+      Logger.info("🎯 Test setup completed successfully")
       %{repository: repo, correlator: correlator}
     end
 
@@ -186,12 +272,33 @@ defmodule ElixirScope.ASTRepository.RuntimeCorrelatorTest do
 
   describe "batch correlation" do
     setup do
+      Logger.info("🧪 Batch correlation test setup starting...")
+      
+      # Ensure Config is available
+      ensure_config_available()
+      
+      Logger.info("🏗️ Starting Repository for batch tests...")
       repo = Helpers.setup_test_repository()
+      Logger.info("✅ Repository started: #{inspect(repo)}")
+      
+      Logger.info("🔗 Starting RuntimeCorrelator for batch tests...")
       {:ok, correlator} = RuntimeCorrelator.start_link(repository_pid: repo)
+      Logger.info("✅ RuntimeCorrelator started: #{inspect(correlator)}")
+      
+      # Monitor critical processes
+      monitor_test_processes(%{repository: repo, correlator: correlator})
       
       on_exit(fn ->
-        if Process.alive?(correlator), do: GenServer.stop(correlator)
-        if Process.alive?(repo), do: GenServer.stop(repo)
+        Logger.info("🧹 Batch test cleanup starting...")
+        if Process.alive?(correlator) do
+          GenServer.stop(correlator)
+          Logger.info("🛑 Stopped RuntimeCorrelator: #{inspect(correlator)}")
+        end
+        if Process.alive?(repo) do
+          GenServer.stop(repo)
+          Logger.info("🛑 Stopped Repository: #{inspect(repo)}")
+        end
+        Logger.info("✅ Batch test cleanup completed")
       end)
       
       %{repository: repo, correlator: correlator}
