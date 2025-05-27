@@ -279,7 +279,7 @@ Current focus areas:
 
 ## 🎓 Resources
 
-- [Documentation](https://hexdocs.pm/elixir_scope) (Coming Soon)
+- [Documentation](https://hexdocs.pm/elixir_scope)
 - [Cinema Demo Guide](test_apps/cinema_demo/README.md)
 - [Architecture Diagrams](docs/ARCHITECTURE_DIAGRAMS.md)
 - [API Reference](docs/API.md)
