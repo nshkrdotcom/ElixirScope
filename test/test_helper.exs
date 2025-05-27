@@ -10,6 +10,10 @@ ExUnit.configure(exclude: [:skip])
 Code.compile_file("test/support/test_phoenix_app.ex")
 Code.compile_file("test/support/ai_test_helpers.ex")
 
+# Compile AST repository test support modules
+Code.compile_file("test/elixir_scope/ast_repository/test_support/fixtures/sample_asts.ex")
+Code.compile_file("test/elixir_scope/ast_repository/test_support/helpers.ex")
+
 # Helper functions for tests
 defmodule ElixirScope.TestHelpers do
   @moduledoc """
