@@ -281,14 +281,14 @@ Current focus areas:
 
 - [Documentation](https://hexdocs.pm/elixir_scope) (Coming Soon)
 - [Cinema Demo Guide](test_apps/cinema_demo/README.md)
-- [Architecture Overview](docs/ARCHITECTURE.md)
+- [Architecture Diagrams](docs/ARCHITECTURE_DIAGRAMS.md)
 - [API Reference](docs/API.md)
 
 ## 💬 Community
 
 - **GitHub Discussions**: [Questions & Ideas](https://github.com/nshkrdotcom/ElixirScope/discussions)
 - **Elixir Forum**: Tag posts with `elixir-scope`
-- **Twitter**: [@elixirscope](https://twitter.com/elixirscope) (Coming Soon)
+- **X**: [@elixirscope](https://x.com/micbyrd)
 
 ## 📊 Comparison with Other Tools
 
