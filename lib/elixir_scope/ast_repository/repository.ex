@@ -17,7 +17,6 @@ defmodule ElixirScope.ASTRepository.Repository do
   use GenServer
   require Logger
   
-  alias ElixirScope.Config
   alias ElixirScope.Storage.DataAccess
   alias ElixirScope.Utils
   alias ElixirScope.ASTRepository.{ModuleData, FunctionData}
@@ -311,7 +310,7 @@ defmodule ElixirScope.ASTRepository.Repository do
   
   defp build_config(opts) do
     # Get base config from ElixirScope.Config if available
-    base_config = case Config.get([:ast_repository]) do
+    base_config = case safe_get_config([:ast_repository]) do
       nil -> @default_config
       config -> Map.merge(@default_config, config)
     end
@@ -319,6 +318,23 @@ defmodule ElixirScope.ASTRepository.Repository do
     # Merge with provided options
     user_config = Keyword.get(opts, :config, %{})
     Map.merge(base_config, user_config)
+  end
+
+  defp safe_get_config(path) do
+    try do
+      case GenServer.whereis(ElixirScope.Config) do
+        nil -> nil
+        pid when is_pid(pid) ->
+          case GenServer.call(pid, {:get_config_path, path}, 1000) do
+            nil -> nil
+            config -> config
+          end
+      end
+    rescue
+      _ -> nil
+    catch
+      :exit, _ -> nil
+    end
   end
   
   defp create_repository_state(config) do

@@ -10,8 +10,14 @@ defmodule ElixirScope.AI.Predictive.ExecutionPredictorTest do
     
     # Ensure clean state
     on_exit(fn ->
-      if Process.alive?(pid) do
-        GenServer.stop(pid)
+      try do
+        if Process.alive?(pid) do
+          GenServer.stop(pid)
+        end
+      rescue
+        _ -> :ok  # Process already dead or stopping
+      catch
+        :exit, _ -> :ok  # Process already dead or stopping
       end
     end)
     

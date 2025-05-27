@@ -146,7 +146,17 @@ defmodule ElixirScope.TestHelpers do
 
   defp restart_config_with_retry(_pid, 0), do: {:error, :max_retries_exceeded}
   defp restart_config_with_retry(pid, retries) do
-    GenServer.stop(pid, :normal, 2000)
+    # Safely stop the GenServer, handling the case where it might already be dead
+    try do
+      if Process.alive?(pid) do
+        GenServer.stop(pid, :normal, 2000)
+      end
+    rescue
+      _ -> :ok  # Process already dead or stopping
+    catch
+      :exit, _ -> :ok  # Process already dead or stopping
+    end
+    
     Process.sleep(50)  # Allow cleanup
     start_config_with_retry(retries)
   end
