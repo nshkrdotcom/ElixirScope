@@ -121,7 +121,7 @@ defmodule ElixirScope.ASTRepository.TestSupport.Fixtures.SampleASTs do
         defp save_results({:ok, data}) do
           case save_to_database(data) do
             :ok -> {:ok, length(data)}
-            {:error, reason} -> {:error, reason}
+            # Note: save_to_database always returns :ok in this test fixture
           end
         end
 

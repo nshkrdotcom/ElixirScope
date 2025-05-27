@@ -532,7 +532,9 @@ defmodule ElixirScope.Capture.TemporalBridge do
   defp reconstruct_state_at_impl(state, timestamp) do
     try do
       # Get all events up to the timestamp
-      case TemporalStorage.get_events_in_range(state.temporal_storage, 0, timestamp) do
+      # Use a very early timestamp to ensure we capture all events
+      start_time = -9_223_372_036_854_775_808  # Minimum 64-bit signed integer
+      case TemporalStorage.get_events_in_range(state.temporal_storage, start_time, timestamp) do
         {:ok, events} ->
           # Reconstruct state by replaying events
           reconstructed_state = replay_events_for_state(events)
@@ -608,14 +610,30 @@ defmodule ElixirScope.Capture.TemporalBridge do
           end
         
         :function_exit ->
-          module = get_in(event.data, [:data, :module]) || Map.get(event.data, :module)
-          function = get_in(event.data, [:data, :function]) || Map.get(event.data, :function)
-          if module && function do
-            function_key = "#{module}.#{function}"
-            Map.put(acc_state, function_key, %{status: :completed, exit_time: event.timestamp})
+          # Function exit events don't have module/function info, so we need to find the matching entry
+          correlation_id = get_in(event.data, [:data, :correlation_id]) || Map.get(event.data, :correlation_id)
+          if correlation_id do
+            # Find the function that was active and mark it as completed
+            Enum.reduce(acc_state, acc_state, fn
+              {function_key, function_state}, state_acc when is_map(function_state) ->
+                if Map.get(function_state, :status) == :active do
+                  # Update the active function to completed
+                  updated_state = Map.merge(function_state, %{status: :completed, exit_time: event.timestamp})
+                  Map.put(state_acc, function_key, updated_state)
+                else
+                  state_acc
+                end
+              _, state_acc ->
+                state_acc
+            end)
           else
             acc_state
           end
+        
+        :local_variable_snapshot ->
+          # Merge variable snapshot data into state
+          variables = get_in(event.data, [:data, :variables]) || Map.get(event.data, :variables, %{})
+          Map.merge(acc_state, variables)
         
         :state_change ->
           state_data = get_in(event.data, [:data, :state]) || Map.get(event.data, :state, %{})

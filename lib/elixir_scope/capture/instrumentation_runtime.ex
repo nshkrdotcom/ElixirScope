@@ -188,22 +188,38 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
   def report_ast_variable_snapshot(correlation_id, variables, line, ast_node_id) do
     case get_context() do
       %{enabled: true, buffer: buffer} when not is_nil(buffer) ->
+        # Create event data
+        event_data = %{
+          variables: variables,
+          line: line,
+          correlation_id: correlation_id,
+          ast_node_id: ast_node_id,
+          source: :ast,
+          ast_correlation: true
+        }
+        
+        # Ingest to main pipeline
         Ingestor.ingest_generic_event(
           buffer,
           :local_variable_snapshot,
-          %{
-            variables: variables,
-            line: line,
-            correlation_id: correlation_id,
-            ast_node_id: ast_node_id,
-            source: :ast,
-            ast_correlation: true
-          },
+          event_data,
           self(),
           correlation_id,
           System.monotonic_time(:nanosecond),
           System.system_time(:nanosecond)
         )
+        
+        # Forward to TemporalBridge for Cinema Debugger
+        temporal_event = %{
+          event_type: :local_variable_snapshot,
+          timestamp: System.monotonic_time(:nanosecond),
+          correlation_id: correlation_id,
+          ast_node_id: ast_node_id,
+          data: event_data
+        }
+        maybe_forward_to_temporal_bridge(temporal_event)
+        
+        :ok
         
       _ ->
         :ok
@@ -320,24 +336,40 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
         # Push to call stack for nested tracking
         push_call_stack(correlation_id)
         
+        # Create event data
+        event_data = %{
+          module: module,
+          function: function,
+          arity: length(args),
+          args: args,
+          source: :ast,
+          correlation_id: correlation_id,
+          ast_node_id: ast_node_id,
+          ast_correlation: true
+        }
+        
+        # Ingest to main pipeline
         Ingestor.ingest_generic_event(
           buffer,
           :function_entry,
-          %{
-            module: module,
-            function: function,
-            arity: length(args),
-            args: args,
-            source: :ast,
-            correlation_id: correlation_id,
-            ast_node_id: ast_node_id,
-            ast_correlation: true
-          },
+          event_data,
           self(),
           correlation_id,
           System.monotonic_time(:nanosecond),
           System.system_time(:nanosecond)
         )
+        
+        # Forward to TemporalBridge for Cinema Debugger
+        temporal_event = %{
+          event_type: :function_entry,
+          timestamp: System.monotonic_time(:nanosecond),
+          correlation_id: correlation_id,
+          ast_node_id: ast_node_id,
+          data: event_data
+        }
+        maybe_forward_to_temporal_bridge(temporal_event)
+        
+        :ok
         
       _ ->
         :ok
@@ -388,22 +420,38 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
         # Pop from call stack
         pop_call_stack()
         
+        # Create event data
+        event_data = %{
+          return_value: return_value,
+          duration_ns: duration_ns,
+          source: :ast,
+          correlation_id: correlation_id,
+          ast_node_id: ast_node_id,
+          ast_correlation: true
+        }
+        
+        # Ingest to main pipeline
         Ingestor.ingest_generic_event(
           buffer,
           :function_exit,
-          %{
-            return_value: return_value,
-            duration_ns: duration_ns,
-            source: :ast,
-            correlation_id: correlation_id,
-            ast_node_id: ast_node_id,
-            ast_correlation: true
-          },
+          event_data,
           self(),
           correlation_id,
           System.monotonic_time(:nanosecond),
           System.system_time(:nanosecond)
         )
+        
+        # Forward to TemporalBridge for Cinema Debugger
+        temporal_event = %{
+          event_type: :function_exit,
+          timestamp: System.monotonic_time(:nanosecond),
+          correlation_id: correlation_id,
+          ast_node_id: ast_node_id,
+          data: event_data
+        }
+        maybe_forward_to_temporal_bridge(temporal_event)
+        
+        :ok
         
       _ ->
         :ok
@@ -1277,5 +1325,22 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
       _ ->
         :ok
     end
+  end
+
+  # Helper function to forward events to TemporalBridge when available
+  defp maybe_forward_to_temporal_bridge(event) do
+    case ElixirScope.Capture.TemporalBridge.get_registered_bridge() do
+      {:ok, bridge} -> 
+        # Non-blocking async forward
+        Task.start(fn ->
+          ElixirScope.Capture.TemporalBridge.correlate_event(bridge, event)
+        end)
+        :ok  # Always return :ok regardless of Task result
+      {:error, :not_registered} -> 
+        :ok  # No bridge registered, continue normally
+    end
+  rescue
+    # If TemporalBridge module doesn't exist or fails, continue gracefully
+    _ -> :ok
   end
 end 
