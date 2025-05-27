@@ -286,7 +286,7 @@ Current focus areas:
 
 ## 💬 Community
 
-- **GitHub Discussions**: [Questions & Ideas](https://github.com/nshkrdotcom/ElixirScope/discussions)
+- **GitHub Discussions**: [Questions & Ideas](https://github.com/nshkrdotcom/ElixirScope/issues)
 - **Elixir Forum**: Tag posts with `elixir-scope`
 - **X**: [@elixirscope](https://x.com/micbyrd)
 
