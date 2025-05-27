@@ -41,7 +41,7 @@ defmodule ElixirScope.MixProject do
   end
 
   defp description() do
-    "ElixirScope is a next-generation debugging and observability platform for Elixir applications, designed to provide an "Execution Cinema" experience through deep, compile-time AST instrumentation guided by AI-powered analysis."
+    "ElixirScope is a next-generation debugging and observability platform for Elixir applications, designed to provide an Execution Cinema experience through deep, compile-time AST instrumentation guided by AI-powered analysis."
   end
 
   defp package do
@@ -88,7 +88,7 @@ defmodule ElixirScope.MixProject do
   defp docs do
     [
       main: "readme",
-      extras: ["README.md"]
+      extras: ["README.md", "PUBLIC_DOCS.md"]
     ]
   end
 

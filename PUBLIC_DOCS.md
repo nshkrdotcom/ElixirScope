@@ -1,10 +1,34 @@
 # ElixirScope Public API Documentation
 
-**Version**: 0.1.0  
-**Last Updated**: December 2024  
-**Status**: Active Development
+**Version**: 0.0.1
+**Last Updated**: December 2024
+**Status**: Foundation Complete - Cinema Demo Available
 
 ElixirScope is an AI-powered execution cinema debugger for Elixir applications that provides deep observability, time-travel debugging, and comprehensive event capture with minimal overhead.
+
+## 🎬 **Try the Working Demo!**
+
+**Experience ElixirScope in action:**
+
+```bash
+git clone https://github.com/nshkrdotcom/ElixirScope.git
+cd ElixirScope/test_apps/cinema_demo
+./run_showcase.sh
+```
+
+**✨ See all features working in ~1 minute!**
+
+## 📋 **Implementation Status**
+
+- ✅ **Core Application API** - `ElixirScope.start/1`, `status/0`, `running?/0` - **WORKING**
+- ✅ **Configuration Management** - Runtime config updates - **WORKING**  
+- ✅ **Cinema Debugger** - TemporalBridge, state reconstruction - **WORKING**
+- ✅ **Performance Monitoring** - Real-time metrics - **WORKING**
+- ⚠️ **Event Querying** - `get_events/1` returns `{:error, :not_implemented_yet}` - **PLANNED**
+- ⚠️ **Time Travel API** - `get_state_at/2` returns `{:error, :not_implemented_yet}` - **PLANNED**
+- ⚠️ **Phoenix Integration** - Web interface - **PLANNED**
+
+**Note**: Use TemporalBridge APIs for working time-travel debugging and event analysis.
 
 ## Table of Contents
 
@@ -36,7 +60,7 @@ def deps do
 end
 ```
 
-### Basic Usage
+### Basic Usage (Working APIs)
 
 ```elixir
 # Start ElixirScope with default configuration
@@ -50,8 +74,33 @@ ElixirScope.running?()
 status = ElixirScope.status()
 # => %{running: true, config: %{...}, stats: %{...}}
 
+# Update configuration at runtime
+:ok = ElixirScope.update_config([:ai, :planning, :sampling_rate], 0.5)
+
 # Stop ElixirScope
 :ok = ElixirScope.stop()
+```
+
+### Working Time-Travel Debugging
+
+```elixir
+# Start TemporalBridge for time-travel debugging
+{:ok, bridge} = ElixirScope.Capture.TemporalBridge.start_link(
+  name: :my_bridge,
+  buffer_size: 1000
+)
+
+# Register as event handler
+:ok = ElixirScope.Capture.TemporalBridge.register_as_handler(bridge)
+
+# Get bridge statistics
+{:ok, stats} = ElixirScope.Capture.TemporalBridge.get_stats(bridge)
+
+# Reconstruct state at specific timestamp (WORKING!)
+{:ok, past_state} = ElixirScope.Capture.TemporalBridge.reconstruct_state_at(
+  bridge, 
+  timestamp
+)
 ```
 
 ### Configuration
@@ -325,9 +374,12 @@ Updates configuration at runtime. Only certain paths can be updated for safety.
 
 ## Event Querying
 
+> ⚠️ **Status**: The `ElixirScope.get_events/1` API currently returns `{:error, :not_implemented_yet}`. 
+> For working event analysis, use the **TemporalBridge APIs** shown in the [Cinema Debugger](#cinema-debugger) section.
+
 ### ElixirScope.get_events/1
 
-Primary interface for querying captured events.
+Primary interface for querying captured events. **[PLANNED - NOT YET IMPLEMENTED]**
 
 ```elixir
 @spec get_events(keyword()) :: [ElixirScope.Events.t()] | {:error, term()}
@@ -398,7 +450,9 @@ history = ElixirScope.get_state_history(worker)
 def get_state_at(pid, timestamp)
 ```
 
-Reconstructs the state of a GenServer at a specific timestamp (time-travel debugging).
+Reconstructs the state of a GenServer at a specific timestamp (time-travel debugging). **[PLANNED - NOT YET IMPLEMENTED]**
+
+> ⚠️ **Use TemporalBridge instead**: `ElixirScope.Capture.TemporalBridge.reconstruct_state_at/2` provides working time-travel debugging.
 
 **Example:**
 
@@ -544,7 +598,9 @@ time_travel_result = CinemaDemo.run_time_travel_debugging_demo()
 
 ## Phoenix Integration
 
-ElixirScope provides specialized Phoenix integration for web applications.
+> ⚠️ **Status**: Phoenix integration is **PLANNED** for future releases. The APIs shown below are not yet implemented.
+
+ElixirScope provides specialized Phoenix integration for web applications. **[PLANNED - NOT YET IMPLEMENTED]**
 
 ### Setup
 
