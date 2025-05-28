@@ -80,9 +80,8 @@ graph TB
         MIX_COMPILER --> PARSER_NODER[ASTRepository.Parser & NodeIdentifier]
         PARSER_NODER -- AST w/ NodeIDs --> AST_ANALYZER[ASTRepository.ASTAnalyzer]
         AST_ANALYZER -- EnhancedModule/FunctionData --> REPO_API[EnhancedRepository API]
-        AST_ANALYZER -- Function ASTs --> GRAPH_GENS[Graph Generators (CFG, DFG, CPG)]
+        AST_ANALYZER -- Function ASTs --> GRAPH_GENS["Graph Generators (CFG, DFG, CPG)"]
         GRAPH_GENS --> REPO_API
-
 
         PARSER_NODER -- AST w/ NodeIDs --> TRANSFORMER[AST.EnhancedTransformer]
         PLAN ==> TRANSFORMER
@@ -93,7 +92,7 @@ graph TB
         direction LR
         INSTR_AST -- Executes --> APP[User Application]
         APP -- Calls (Event + AST Node ID) --> RUNTIME_API[Capture.InstrumentationRuntime]
-        RUNTIME_API --> CAPTURE_PIPELINE[Capture.PipelineManager (Ingestor, RingBuffer, AsyncWriters)]
+        RUNTIME_API --> CAPTURE_PIPELINE["Capture.PipelineManager (Ingestor, RingBuffer, AsyncWriters)"]
         CAPTURE_PIPELINE --> EVENT_STORE_SVC[Storage.EventStore Service]
 
         RUNTIME_API -- AST-Aware Events --> ENH_INSTR[Capture.EnhancedInstrumentation]
@@ -116,22 +115,49 @@ graph TB
         QUERY_ENGINE_EXT <--> EVENT_STORE_SVC
         QUERY_ENGINE_EXT --> UI_API[UI/API Layer / Cinema Debugger]
 
-        AI_COMPONENTS[AI Components (IntelligentCodeAnalyzer, PredictiveAnalyzer)] <--> AI_BRIDGE[AI.Bridge]
+        AI_COMPONENTS["AI Components (IntelligentCodeAnalyzer, PredictiveAnalyzer)"] <--> AI_BRIDGE[AI.Bridge]
         AI_BRIDGE <--> QUERY_ENGINE_EXT
         AI_COMPONENTS --> ORCH
     end
 
-    style SRC fill:#f9f,stroke:#333,stroke-width:2px
-    style INSTR_AST fill:#f9f,stroke:#333,stroke-width:2px
-    style ETS_STATIC_DATA fill:#e0f7fa,stroke:#006064,stroke-width:2px
-    style ETS_RUNTIME_EVENTS fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
-    style ETS_TEMPORAL_EVENTS fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    %% Subgraph Styles
+    style CT fill:#E3F2FD,stroke:#1976D2,color:#000
+    style RT fill:#E8F5E9,stroke:#388E3C,color:#000
+    style AN fill:#FFF3E0,stroke:#F57C00,color:#000
 
-    style CT fill:#eceff1,stroke:#37474f,color:#000
-    style RT fill:#eceff1,stroke:#37474f,color:#000
-    style AN fill:#eceff1,stroke:#37474f,color:#000
+    %% Compile Time (CT) Styles
+    style SRC fill:#BBDEFB,stroke:#1976D2,stroke-width:2px,color:#000
+    style PLAN fill:#BBDEFB,stroke:#1976D2,stroke-width:2px,color:#000
+    style INSTR_AST fill:#BBDEFB,stroke:#1976D2,stroke-width:2px,color:#000
+    style MIX_COMPILER fill:#64B5F6,stroke:#1976D2,stroke-width:2px,color:#000
+    style ORCH fill:#64B5F6,stroke:#1976D2,stroke-width:2px,color:#000
+    style AI_PLAN_CA fill:#64B5F6,stroke:#1976D2,stroke-width:2px,color:#000
+    style PARSER_NODER fill:#64B5F6,stroke:#1976D2,stroke-width:2px,color:#000
+    style AST_ANALYZER fill:#64B5F6,stroke:#1976D2,stroke-width:2px,color:#000
+    style GRAPH_GENS fill:#64B5F6,stroke:#1976D2,stroke-width:2px,color:#000
+    style TRANSFORMER fill:#64B5F6,stroke:#1976D2,stroke-width:2px,color:#000
+    style REPO_API fill:#1976D2,stroke:#0D47A1,stroke-width:2px,color:#000
 
-    style ENH_REPO_GS fill:#f57c00,stroke:#e65100,stroke-width:2px,color:#fff
+    %% Runtime System (RT) Styles
+    style APP fill:#66BB6A,stroke:#388E3C,stroke-width:2px,color:#000
+    style RUNTIME_API fill:#66BB6A,stroke:#388E3C,stroke-width:2px,color:#000
+    style CAPTURE_PIPELINE fill:#66BB6A,stroke:#388E3C,stroke-width:2px,color:#000
+    style EVENT_STORE_SVC fill:#66BB6A,stroke:#388E3C,stroke-width:2px,color:#000
+    style ENH_INSTR fill:#66BB6A,stroke:#388E3C,stroke-width:2px,color:#000
+    style RUNTIME_CORR fill:#66BB6A,stroke:#388E3C,stroke-width:2px,color:#000
+    style DEBUG_ACTIONS fill:#66BB6A,stroke:#388E3C,stroke-width:2px,color:#000
+    style TEMP_BRIDGE_ENH fill:#66BB6A,stroke:#388E3C,stroke-width:2px,color:#000
+    style TEMP_STORAGE fill:#66BB6A,stroke:#388E3C,stroke-width:2px,color:#000
+
+    %% Analysis & Query (AN) Styles
+    style ENH_REPO_GS fill:#FFB74D,stroke:#F57C00,stroke-width:2px,color:#000
+    style QUERY_ENGINE_EXT fill:#FFB74D,stroke:#F57C00,stroke-width:2px,color:#000
+    style AI_COMPONENTS fill:#FFB74D,stroke:#F57C00,stroke-width:2px,color:#000
+    style AI_BRIDGE fill:#FFB74D,stroke:#F57C00,stroke-width:2px,color:#000
+    style UI_API fill:#F57C00,stroke:#E65100,stroke-width:2px,color:#000
+    style ETS_STATIC_DATA fill:#FFE0B2,stroke:#FFB74D,stroke-width:2px,color:#000
+    style ETS_RUNTIME_EVENTS fill:#FFE0B2,stroke:#FFB74D,stroke-width:2px,color:#000
+    style ETS_TEMPORAL_EVENTS fill:#FFE0B2,stroke:#FFB74D,stroke-width:2px,color:#000
 ```
 **Diagram Description:**
 *   **Compile Time**: Source code is parsed, AST Node IDs are assigned. The `ASTAnalyzer` and various Graph Generators (CFG, DFG, CPG) process the ASTs. This rich static data is stored in the `EnhancedRepository` (via its API, managed by the `EnhancedRepository GenServer`). An `Instrumentation Plan` (potentially AI-driven) guides the `EnhancedTransformer` in injecting `InstrumentationRuntime` calls (with AST Node IDs) into the code.
