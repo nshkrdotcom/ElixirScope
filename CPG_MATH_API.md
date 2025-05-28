@@ -190,3 +190,27 @@ Retrieves edges connected to a node.
 *   **Returns:** `{:ok, [CPGEdge.t()]}`.
 
 ---
+## 9. Integration with ETS-Based Repository
+
+All `CPGMath` functions operate on `CPGData.t()` structs but are designed to work seamlessly with the ETS-backed persistence layer:
+
+### 9.1. Caching Strategy
+```elixir
+# CPGMath functions should check for cached results first
+def betweenness_centrality(cpg, opts \\ []) do
+  cache_key = {:betweenness, cpg.version, opts_hash(opts)}
+  
+  case get_cached_result(cpg, cache_key) do
+    {:ok, cached_result} -> {:ok, cached_result}
+    :cache_miss -> 
+      result = compute_betweenness_centrality(cpg, opts)
+      store_cached_result(cpg, cache_key, result)
+      {:ok, result}
+  end
+end
+```
+
+### 9.2. Memory-Efficient Operations
+- Algorithms should work with ETS-backed lazy loading when possible
+- Large intermediate data structures should be streamed rather than accumulated
+- Results should be stored back to `cpg.unified_analysis` for persistence

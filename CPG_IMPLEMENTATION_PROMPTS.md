@@ -153,60 +153,292 @@ Ensure the `applies_to:` option correctly targets the CPG node type intended for
 
 ---
 
-## Section 5: Implement CPG Performance & Memory Optimizations
+## Enhanced Implementation Strategy
 
-**Prompt 5.1: Design and Implement Incremental CPG Updates in `CPGBuilder`**
-"In `ElixirScope.ASTRepository.Enhanced.CPGBuilder`:
-1.  Define and implement `update_cpg(existing_cpg :: CPGData.t(), changes :: map()) :: {:ok, CPGData.t()}`.
-    The `changes` map will detail modifications, e.g., `%{modified_functions: [%{function_key: {:my_mod, :f1, 1}, new_ast: ..., old_cpg_nodes_range: {start_id, end_id}}], deleted_functions: [%{function_key: {:my_mod, :f2, 0}, cpg_nodes_range: {start_id, end_id}}], added_functions: [%{function_key: {:my_mod, :f3, 0}, ast: ...}]}`.
-2.  **Deletion:** For `deleted_functions`, remove all CPG nodes and incident edges within their `cpg_nodes_range` (or identified by their function key) from `existing_cpg.nodes` and `existing_cpg.edges`. Update inter-procedural edges.
-3.  **Modification:** For `modified_functions`:
-    a.  (Simpler initial approach) Remove their old CPG subgraph (nodes/edges).
-    b.  Generate a new CPG subgraph for `new_ast` using existing `CPGBuilder` logic, ensuring new node IDs are unique within the overall CPG.
-    c.  Merge the new subgraph's nodes and edges into `existing_cpg`. Update inter-procedural edges.
-4.  **Addition:** For `added_functions`, generate their CPG subgraphs and merge.
-5.  **Versioning & Cache Invalidation:** Increment `existing_cpg.version` (add this field to `CPGData` if not present, integer default 1). Clear any algorithm-specific caches in `existing_cpg.metadata` or `existing_cpg.unified_analysis` (e.g., set `centrality_scores` to `nil` or an empty map). This signals that algorithmic results are stale.
-Refer to `CPG_OPTIMIZATION_STRATEGIES.MD`, section 2."
+**Before implementing CPG algorithms, understand the existing foundation:**
 
-**Prompt 5.2: Implement Algorithmic Result Caching in `CPGSemantics` and Persistence in `EnhancedRepository`**
-"1. Modify functions in `ElixirScope.ASTRepository.Enhanced.CPGSemantics` (e.g., `dependency_impact_analysis`, `detect_architectural_smells`, `community_louvain`).
-    a.  Before computation on `cpg :: CPGData.t()`, check if a valid (version-matching) result is in `cpg.unified_analysis` (e.g., `cpg.unified_analysis.complexity_analysis.centrality_scores` if the `cpg.version` matches a stored `version_for_centrality_scores`).
-    b.  If cached and valid, return it.
-    c.  Otherwise, compute. After computation, store the result in the appropriate field within `cpg.unified_analysis`, along with the `cpg.version` at which it was computed.
-    d.  These functions should now return `{:ok, %{cpg | unified_analysis: updated_ua}, specific_result_for_query}`.
-2.  Modify `ElixirScope.ASTRepository.Enhanced.Repository`. When its functions (like query handlers) call these `CPGSemantics` functions and receive an `updated_cpg_with_cache`, the `Repository` must persist this updated `CPGData.t()` (specifically its `unified_analysis` and new `version`) back to ETS. This might involve adding a new internal function like `EnhancedRepository.update_cpg_analysis_data(function_key_or_module_name, new_analysis_data, new_version)`.
-Refer to `CPG_OPTIMIZATION_STRATEGIES.MD`, section 5."
+1. **Study `ElixirScope.ASTRepository.Enhanced.Repository`** - This is your CPG persistence layer
+2. **Examine `CPGData.t()` structure** - This is your in-memory CPG representation
+3. **Review ETS table patterns** - Follow established serialization/deserialization patterns
 
-**Prompt 5.3: Add `:version` field to `CPGData` and relevant sub-structs in `UnifiedAnalysis`**
-"In `elixir_scope/ast_repository/enhanced/cpg_data.ex`:
-1.  Add a `:version, default: 1` field to the `CPGData.t()` struct definition.
-2.  In `UnifiedAnalysis.t()` and its sub-structs (e.g., `ComplexityAnalysis.t()`, `PatternAnalysis.t()`), consider adding a `:computed_at_cpg_version` field alongside cached results like `centrality_scores` or `community_assignments`. This will help validate cache freshness against the main `CPGData.version`.
-    *Example for `ComplexityAnalysis` in `cpg_data.ex` (or its own file if it's separate):*
-    ```elixir
-    defmodule ElixirScope.ASTRepository.Enhanced.ComplexityAnalysis do
-      defstruct [:unified_complexity, :complexity_distribution, :hotspots, :trends, 
-                 :centrality_scores, :centrality_scores_version, # New
-                 :community_assignments, :community_assignments_version] # New
-      # ... typespec ...
-    end
-    ```
-This `:version` field is crucial for cache invalidation as described in `CPG_OPTIMIZATION_STRATEGIES.MD`, section 5.3."
+**Modified Implementation Order:**
 
----
+1. **Enhance `CPGData.t()` structure** (Week 1)
+   - Add `version` field for cache invalidation
+   - Extend `unified_analysis` for algorithmic results
+   - Ensure ETS serialization compatibility
 
-## Section 6: Enhancing AI Bridge for CPG Features
+2. **Implement `CPGMath` algorithms** (Week 2)
+   - Operate on in-memory `CPGData.t()` structs
+   - No direct ETS interaction - leave that to Repository
+   - Focus on correctness first, optimization later
 
-**Prompt 6.1: Implement `AI.Bridge.get_cpg_node_features_for_ai/3`**
-"Create/Update `ElixirScope.AI.Bridge` (e.g., in `elixir_scope/ai/bridge.ex`).
-Implement `get_cpg_node_features_for_ai(cpg_node_id :: String.t(), requested_features :: list(atom()), repo_pid \\ ElixirScope.ASTRepository.Enhanced.Repository)`.
-1.  Determine the `function_key` or `module_name` from `cpg_node_id` (assume a parsable format like `Module.FunctionArity:NodeType:Instance` or that the caller provides the parent key). Fetch the relevant `CPGData.t()` using `EnhancedRepository.get_cpg/3` or `EnhancedRepository.get_enhanced_module/1` (if it's a module-level CPG node).
-2.  For the specific `cpg_node_id` within the fetched `cpg_data`:
-    a.  Iterate `requested_features`. For each feature atom:
-        *   If it's a direct property of `CPGNode.t()` (e.g., `:ast_type`, `:line_number`), extract it from `cpg_data.nodes[cpg_node_id]`.
-        *   If it's an CPG algorithmic metric (e.g., `:centrality_betweenness`, `:community_id`):
-            i.   Check if it's cached in `cpg_data.unified_analysis` (e.g., `cpg_data.unified_analysis.complexity_analysis.centrality_scores[cpg_node_id].betweenness`). Verify cache freshness using version numbers.
-            ii.  If not cached or stale, call the appropriate `CPGMath` or `CPGSemantics` function to compute it for the *entire* `cpg_data`.
-            iii. Store the full set of computed metrics back into `cpg_data.unified_analysis` along with the current `cpg_data.version`, and trigger persistence of the updated `CPGData` via `EnhancedRepository`.
-            iv.  Extract the specific metric for the target `cpg_node_id`.
-3.  Return `{:ok, feature_map :: map()}` where keys are feature atoms and values are their computed values.
-Refer to `CPG_AI_ML_FEATURES.MD`, section 2.1 and section 5."
+3. **Enhance `EnhancedRepository`** (Week 3)
+   - Add ETS storage patterns for algorithmic results
+   - Implement cache invalidation on CPG version changes
+   - Add query methods for CPG metrics
+
+4. **Update Query Layer** (Week 4)
+   - Extend `QueryBuilder` for CPG-aware queries
+   - Leverage existing ETS query patterns
+   - Add on-demand computation with caching
+
+
+
+
+
+
+
+
+
+   
+### Update `CPG_IMPLEMENTATION_PROMPTS.MD` - Production-Ready Implementation
+
+Add comprehensive implementation guidance that reflects the ETS architecture insights:
+
+```markdown
+## Section 7: Production-Ready Implementation Prompts
+
+**Prompt 7.1: Implement ETS-Optimized CPG Storage in EnhancedRepository**
+"Enhance `ElixirScope.ASTRepository.Enhanced.Repository` to support CPG data storage:
+
+1. Add new ETS tables following existing patterns in the module:
+   ```elixir
+   @cpg_nodes_table :cpg_nodes
+   @cpg_edges_table :cpg_edges  
+   @cpg_analysis_cache :cpg_analysis_results
+   ```
+
+2. Implement CPG storage functions following the existing `store_enhanced_module/2` pattern:
+   ```elixir
+   def store_cpg_data(module_name, function_key, cpg_data) do
+     # Serialize CPGData similar to existing EnhancedModuleData.to_ets_format/1
+     # Store nodes and edges in separate tables for query optimization
+     # Update unified_analysis cache with any pre-computed results
+   end
+   ```
+
+3. Add retrieval functions following existing `get_enhanced_module/1` pattern:
+   ```elixir
+   def get_cpg_data(module_name, function_key) do
+     # Reconstruct CPGData.t() from ETS tables
+     # Apply lazy loading for large analysis results
+     # Handle missing or partial CPG data gracefully
+   end
+   ```
+
+4. Ensure all new functions follow the existing GenServer call/cast patterns and error handling."
+
+**Prompt 7.2: Implement CPG Version Management and Cache Invalidation**
+"Add version management to CPG data following ElixirScope's existing patterns:
+
+1. Enhance the `CPGData.t()` struct in `cpg_data.ex`:
+   ```elixir
+   defstruct [
+     # ... existing fields ...
+     version: 1,
+     last_updated: nil,
+     cache_validity: %{}
+   ]
+   ```
+
+2. Implement cache invalidation in `EnhancedRepository`:
+   ```elixir
+   def invalidate_cpg_cache(module_name, function_key, reason) do
+     # Follow existing cache invalidation patterns
+     # Update version numbers
+     # Clear dependent analysis results
+     # Log invalidation events for monitoring
+   end
+   ```
+
+3. Add version checking to all CPG algorithm functions:
+   ```elixir
+   def get_cached_or_compute(cpg_data, algorithm, opts) do
+     cache_key = {algorithm, hash_opts(opts)}
+     case get_cached_result(cpg_data, cache_key) do
+       {:ok, result, cached_version} when cached_version == cpg_data.version ->
+         {:ok, result}
+       _ ->
+         compute_and_cache(cpg_data, algorithm, opts)
+     end
+   end
+   ```"
+
+**Prompt 7.3: Implement Production Monitoring Integration**
+"Add comprehensive monitoring to CPG operations following ElixirScope's telemetry patterns:
+
+1. Add telemetry events for CPG operations:
+   ```elixir
+   def execute_cpg_algorithm(algorithm, cpg_data, opts) do
+     :telemetry.span([:elixir_scope, :cpg, :algorithm], %{algorithm: algorithm}, fn ->
+       result = apply(CPGMath, algorithm, [cpg_data, opts])
+       {result, %{nodes_processed: map_size(cpg_data.nodes)}}
+     end)
+   end
+   ```
+
+2. Add ETS table monitoring:
+   ```elixir
+   def report_ets_metrics() do
+     tables = [@cpg_nodes_table, @cpg_edges_table, @cpg_analysis_cache]
+     Enum.each(tables, fn table ->
+       info = :ets.info(table)
+       :telemetry.execute([:elixir_scope, :cpg, :ets, :size], 
+         %{size: info[:size], memory: info[:memory]}, 
+         %{table: table})
+     end)
+   end
+   ```
+
+3. Add query performance tracking following existing patterns in QueryBuilder."
+
+**Prompt 7.4: Implement Graceful Error Handling and Fallbacks**
+"Add comprehensive error handling to CPG operations:
+
+1. Implement circuit breaker pattern for expensive CPG computations:
+   ```elixir
+   defmodule CPGCircuitBreaker do
+     # Prevent expensive operations from overwhelming the system
+     def execute_with_circuit_breaker(operation, opts \\ []) do
+       case get_circuit_state() do
+         :closed -> execute_operation(operation)
+         :open -> {:error, :circuit_breaker_open}
+         :half_open -> try_operation_with_monitoring(operation)
+       end
+     end
+   end
+   ```
+
+2. Add fallback mechanisms for CPG queries:
+   ```elixir
+   def execute_cpg_query_with_fallback(query_spec) do
+     case execute_cpg_query(query_spec) do
+       {:ok, result} -> {:ok, result}
+       {:error, :cpg_not_available} -> execute_ast_only_query(query_spec)
+       {:error, :timeout} -> execute_simplified_cpg_query(query_spec)
+       {:error, reason} -> {:error, {:cpg_fallback, reason}}
+     end
+   end
+   ```
+
+3. Ensure all CPG failures are logged appropriately and don't crash the main process."
+```
+
+## Comprehensive Testing Framework Enhancement
+
+### Update Test Infrastructure for Production Readiness
+
+Create `test/support/cpg_production_helpers.ex`:
+
+```elixir
+defmodule ElixirScope.CPGProductionHelpers do
+  @moduledoc """
+  Production-focused test helpers for CPG functionality.
+  Simulates realistic production scenarios and loads.
+  """
+  
+  def setup_production_ets_config do
+    # Configure ETS tables with production-like settings
+    Application.put_env(:elixir_scope, :cpg_ets_config, [
+      read_concurrency: true,
+      write_concurrency: true,
+      decentralized_counters: true
+    ])
+  end
+  
+  def generate_realistic_project_cpg(module_count \\ 100) do
+    # Generate CPG data that resembles real-world Elixir projects
+    modules = generate_realistic_modules(module_count)
+    
+    # Create realistic inter-module dependencies
+    dependencies = generate_realistic_dependencies(modules)
+    
+    # Build comprehensive CPG
+    build_realistic_cpg(modules, dependencies)
+  end
+  
+  def simulate_production_load(duration_ms \\ 30_000) do
+    # Simulate realistic query patterns
+    query_patterns = [
+      {:frequent, &execute_common_queries/0, 0.6},
+      {:moderate, &execute_analysis_queries/0, 0.3},
+      {:rare, &execute_complex_queries/0, 0.1}
+    ]
+    
+    # Simulate concurrent access patterns
+    concurrent_users = 10
+    
+    spawn_load_simulation(query_patterns, concurrent_users, duration_ms)
+  end
+  
+  def assert_production_performance(metrics) do
+    # Assert production-level performance requirements
+    assert metrics.avg_query_time_ms < 100
+    assert metrics.p95_query_time_ms < 500
+    assert metrics.error_rate < 0.01
+    assert metrics.memory_usage_mb < 1000
+    assert metrics.cache_hit_rate > 0.80
+  end
+  
+  def measure_memory_impact(fun) do
+    # Measure actual memory usage of CPG operations
+    {:reductions, reductions_before} = Process.info(self(), :reductions)
+    memory_before = :erlang.memory()
+    
+    result = fun.()
+    
+    memory_after = :erlang.memory()
+    {:reductions, reductions_after} = Process.info(self(), :reductions)
+    
+    memory_delta = calculate_memory_delta(memory_before, memory_after)
+    reductions_used = reductions_after - reductions_before
+    
+    {result, %{memory_delta: memory_delta, reductions: reductions_used}}
+  end
+  
+  defp generate_realistic_modules(count) do
+    # Generate modules with realistic size distributions
+    # - 70% small modules (5-15 functions)
+    # - 25% medium modules (15-50 functions)  
+    # - 5% large modules (50+ functions)
+    
+    Enum.map(1..count, fn i ->
+      size_category = choose_module_size_category()
+      function_count = choose_function_count(size_category)
+      
+      %{
+        name: :"TestModule#{i}",
+        functions: generate_realistic_functions(function_count),
+        complexity: calculate_module_complexity(function_count)
+      }
+    end)
+  end
+  
+  defp generate_realistic_dependencies(modules) do
+    # Create realistic dependency patterns:
+    # - Core utility modules have high in-degree
+    # - Application modules have moderate coupling
+    # - Some circular dependencies (realistic anti-patterns)
+    
+    core_modules = Enum.take(modules, div(length(modules), 10))
+    
+    Enum.flat_map(modules, fn module ->
+      dependency_count = choose_dependency_count(module.complexity)
+      
+      Enum.map(1..dependency_count, fn _ ->
+        target = if :rand.uniform() < 0.3 do
+          Enum.random(core_modules)
+        else
+          Enum.random(modules -- [module])
+        end
+        
+        {module.name, target.name, choose_dependency_type()}
+      end)
+    end)
+  end
+end
+```
+
+
+

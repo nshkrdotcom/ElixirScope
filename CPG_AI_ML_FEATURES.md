@@ -149,3 +149,23 @@ AI components will primarily access these new features through:
 3.  **`ElixirScope.AI.Bridge`**: This module will act as a specialized facade, offering functions like `get_function_cpg_with_algorithms_for_ai(function_key, [:centrality, :community])` or `get_node_features_for_ml(cpg_node_id, [:pagerank, :community_size, :ast_type])`. It would orchestrate calls to `EnhancedRepository`, `CPGMath`, and `CPGSemantics`. This facilitates direct calls to `CPGMath` and `CPGSemantics` for specific, on-demand algorithmic analysis if not covered by standard queries or pre-computed metrics.
 
 By leveraging the CPG Algorithmic Enhancement Layer, ElixirScope's AI capabilities can move beyond surface-level AST analysis to a deeper, more structural and semantic understanding of the codebase, leading to more powerful and accurate developer assistance. This layer transforms the CPG from a rich data structure into an active analytical tool, providing the deep semantic and structural context that AI/ML models need to deliver truly intelligent insights about Elixir code.
+## 6. ETS-Optimized Feature Access
+
+**`AI.Bridge` should leverage ETS efficiency:**
+
+```elixir
+def get_cpg_node_features_for_ai(cpg_node_id, requested_features, repo_pid) do
+  # Leverage ETS select patterns for batch feature retrieval
+  case :ets.lookup(@cpg_analysis_cache, {cpg_node_id, :all_centrality, current_version()}) do
+    [{_, cached_centrality}] -> 
+      extract_requested_centrality_features(cached_centrality, requested_features)
+    [] -> 
+      trigger_centrality_computation_and_cache(cpg_node_id, repo_pid)
+  end
+end
+```
+
+**Batch Processing for ML:**
+- Use ETS `select` to retrieve features for multiple nodes efficiently  
+- Implement smart prefetching for related CPG nodes
+- Cache ML-specific feature vectors separately from raw algorithmic results

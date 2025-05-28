@@ -145,3 +145,20 @@ While not direct API calls, these are crucial internal aspects of `CPGSemantics`
 *   **Library Usage**: Recognize calls to common libraries (Ecto, Phoenix) and adjust semantic interpretations accordingly (e.g., `Ecto.Repo.all/2` implies a database interaction).
 
 ---
+## 7. ETS Integration Patterns
+
+### 7.1. Cross-Module Analysis
+```elixir
+def identify_coupling(cpg, node_id1, node_id2, opts \\ []) do
+  # May need to query across multiple CPG units stored in ETS
+  with {:ok, module1_cpg} <- get_cpg_for_node(node_id1),
+       {:ok, module2_cpg} <- get_cpg_for_node(node_id2) do
+    analyze_coupling_across_cpgs(module1_cpg, module2_cpg, node_id1, node_id2, opts)
+  end
+end
+```
+
+### 7.2. Incremental Analysis
+- `detect_architectural_smells/2` should leverage ETS indexes for efficient filtering
+- Results should be cached with appropriate invalidation keys
+- Analysis should be resumable if interrupted

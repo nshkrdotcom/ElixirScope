@@ -234,3 +234,35 @@ IO.puts("Downstream affected nodes: #{length(impact_report.downstream_nodes)}")
 ```
 
 ---
+## 2.5. ETS Query Optimization Patterns
+
+### Leveraging Match Specifications
+```elixir
+# Instead of filtering in Elixir code:
+def find_high_centrality_nodes(threshold) do
+  # Use ETS select with match specifications
+  match_spec = [
+    {{{:_, :_, :"$1"}, %{centrality: %{betweenness: :"$2"}}}, 
+     [{:>, :"$2", threshold}], 
+     [{{:"$1", :"$2"}}]}
+  ]
+  :ets.select(@cpg_analysis_cache, match_spec)
+end
+```
+
+### Batch Operations
+```elixir
+# For queries involving multiple CPG units
+def query_across_modules(module_list, condition) do
+  # Use ETS select_delete/match_delete for efficient bulk operations
+  # Implement streaming for large result sets
+  # Cache query plans for repeated patterns
+end
+```
+
+### Index-First Query Planning
+The `CPGOptimizer` should prioritize:
+1. ETS indexed lookups (fastest)
+2. ETS select with match specifications (fast)
+3. In-memory filtering of ETS results (slower)
+4. Full algorithmic computation (slowest)

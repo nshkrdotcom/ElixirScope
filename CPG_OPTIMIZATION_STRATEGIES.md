@@ -6,6 +6,23 @@
 
 As ElixirScope projects grow, managing the performance and memory footprint of Code Property Graphs (CPGs) becomes critical. This document outlines strategies for optimizing CPG generation, storage, querying, and incremental updates. These optimizations will be implemented across modules like `CPGBuilder`, `EnhancedRepository`, `MemoryManager`, and potentially a new `CPGOptimizer`.
 
+## 1.5. ETS Table Design for CPG Storage
+
+The CPG data will be stored across multiple ETS tables managed by `EnhancedRepository`:
+
+*   **`@cpg_nodes_table`**: `{{module_name, function_key, cpg_node_id}, serialized_CPGNode.t()}`
+*   **`@cpg_edges_table`**: `{{from_node_id, to_node_id, edge_type}, serialized_CPGEdge.t()}`
+*   **`@cpg_analysis_cache`**: `{{cpg_unit_key, algorithm_name, version}, serialized_results}`
+
+**Indexing Strategy:**
+- Adjacency list indexes for efficient graph traversal
+- Type-based indexes for filtering by node/edge types
+- Community membership indexes for architectural analysis
+
+**Query Optimization:**
+- Leverage existing `QueryIndexes` pattern for CPG-specific indexes
+- Use ETS `select` with match specifications for complex graph queries
+- Cache frequently accessed subgraphs in memory
 ## 2. Incremental CPG Updates
 
 *   **PRD Link:** FR5.1
@@ -198,5 +215,78 @@ As ElixirScope projects grow, managing the performance and memory footprint of C
     *   Specific graph algorithm execution times (e.g., centrality calculation).
     *   CPG query execution time.
 *   These metrics can be reported to `MemoryManager` or a dedicated performance tracking system to identify bottlenecks in the CPG layer itself.
+
+### 6.1. ETS Table Health Monitoring
+```elixir
+defmodule CPGMonitoring do
+  use GenServer
+  
+  # Monitor ETS table sizes and performance
+  def handle_info(:monitor_ets_health, state) do
+    tables = [@cpg_nodes_table, @cpg_edges_table, @cpg_analysis_cache]
+    
+    health_metrics = Enum.map(tables, fn table ->
+      info = :ets.info(table)
+      %{
+        table: table,
+        size: info[:size],
+        memory: info[:memory] * :erlang.system_info(:wordsize),
+        type: info[:type]
+      }
+    end)
+    
+    # Report to telemetry
+    :telemetry.execute([:elixir_scope, :cpg, :ets_health], health_metrics)
+    
+    # Check for alert conditions
+    check_alert_conditions(health_metrics)
+    
+    {:noreply, state}
+  end
+  
+  defp check_alert_conditions(metrics) do
+    Enum.each(metrics, fn %{table: table, memory: memory} ->
+      if memory > @memory_alert_threshold do
+        Logger.warn("CPG ETS table #{table} memory usage: #{memory} bytes")
+        # Trigger cleanup or alerting
+      end
+    end)
+  end
+end
+```
+
+### 6.2. Query Performance Monitoring
+```elixir
+def monitor_cpg_query_performance(query_spec, fun) do
+  start_time = System.monotonic_time()
+  
+  try do
+    result = fun.()
+    
+    duration = System.monotonic_time() - start_time
+    duration_ms = System.convert_time_unit(duration, :native, :millisecond)
+    
+    :telemetry.execute(
+      [:elixir_scope, :cpg, :query, :duration],
+      %{duration_ms: duration_ms},
+      %{query_type: classify_query_type(query_spec)}
+    )
+    
+    if duration_ms > @slow_query_threshold do
+      Logger.warn("Slow CPG query detected: #{duration_ms}ms - #{inspect(query_spec)}")
+    end
+    
+    result
+  rescue
+    error ->
+      :telemetry.execute(
+        [:elixir_scope, :cpg, :query, :error],
+        %{},
+        %{error: inspect(error), query_type: classify_query_type(query_spec)}
+      )
+      reraise error, __STACKTRACE__
+  end
+end
+```
 
 ---
