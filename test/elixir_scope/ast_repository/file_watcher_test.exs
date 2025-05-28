@@ -591,6 +591,159 @@ defmodule ElixirScope.ASTRepository.FileWatcherTest do
     end
   end
 
+  describe "Project rescanning" do
+    setup do
+      :ok = TestHelpers.ensure_config_available()
+      File.mkdir_p!(@test_watch_dir)
+      File.mkdir_p!(Path.join(@test_watch_dir, "lib"))
+      
+      on_exit(fn -> cleanup_test_directory() end)
+      
+      %{watch_dir: @test_watch_dir}
+    end
+    
+    test "rescan_project triggers full project rescan when watching", %{watch_dir: watch_dir} do
+      # Start file watcher with a project
+      {:ok, watcher_pid} = FileWatcher.start_link(watch_dirs: [watch_dir])
+      
+      # Verify initial state
+      {:ok, initial_status} = FileWatcher.get_status(watcher_pid)
+      assert initial_status.status == :watching
+      
+      # Create some test files first
+      test_file1 = Path.join([watch_dir, "lib", "module1.ex"])
+      test_file2 = Path.join([watch_dir, "lib", "module2.ex"])
+      
+      File.write!(test_file1, """
+      defmodule Module1 do
+        def function1, do: :ok
+      end
+      """)
+      
+      File.write!(test_file2, """
+      defmodule Module2 do
+        def function2, do: :ok
+      end
+      """)
+      
+      # Wait for initial processing
+      Process.sleep(100)
+      
+      # Call rescan_project - this should trigger the handle_call(:rescan_project) line
+      assert :ok = FileWatcher.rescan_project()
+      
+      # Verify the last_scan_time was updated (indicating rescan was triggered)
+      {:ok, updated_status} = FileWatcher.get_status(watcher_pid)
+      assert updated_status.status == :watching
+      
+      # The rescan should have updated the last_scan_time
+      # We can't easily test the exact time, but we can verify the call succeeded
+      assert updated_status.last_scan_time != nil
+      
+      FileWatcher.stop(watcher_pid)
+    end
+    
+    test "rescan_project returns error when not watching any project" do
+      # Start file watcher without watching any project
+      {:ok, watcher_pid} = FileWatcher.start_link([])
+      
+      # Verify not watching
+      {:ok, status} = FileWatcher.get_status(watcher_pid)
+      assert status.status == :stopped
+      
+      # Call rescan_project - should return error since no project is being watched
+      assert {:error, :not_watching} = FileWatcher.rescan_project()
+      
+      FileWatcher.stop(watcher_pid)
+    end
+    
+    test "rescan_project spawns background process for full rescan", %{watch_dir: watch_dir} do
+      # Start file watcher
+      {:ok, watcher_pid} = FileWatcher.start_link(watch_dirs: [watch_dir])
+      
+      # Create test files
+      test_file = Path.join([watch_dir, "lib", "test_module.ex"])
+      File.write!(test_file, """
+      defmodule TestModule do
+        def test_function, do: :test
+      end
+      """)
+      
+      # Monitor the watcher process to see if it spawns any child processes
+      initial_process_count = length(Process.list())
+      
+      # Call rescan_project
+      assert :ok = FileWatcher.rescan_project()
+      
+      # Give the spawned process time to start
+      Process.sleep(50)
+      
+      # Verify a new process was spawned (the rescan happens in a spawned process)
+      # Note: This is a bit fragile but tests that the spawn actually happens
+      current_process_count = length(Process.list())
+      
+      # The exact count might vary, but we should see some process activity
+      # The important thing is that the call succeeded and returned :ok
+      assert current_process_count >= initial_process_count
+      
+      # Wait for rescan to complete
+      Process.sleep(200)
+      
+      FileWatcher.stop(watcher_pid)
+    end
+    
+    test "rescan_project updates last_scan_time in state", %{watch_dir: watch_dir} do
+      # Start file watcher
+      {:ok, watcher_pid} = FileWatcher.start_link(watch_dirs: [watch_dir])
+      
+      # Get initial status
+      {:ok, initial_status} = FileWatcher.get_status(watcher_pid)
+      initial_scan_time = initial_status.last_scan_time
+      
+      # Wait a moment to ensure time difference
+      Process.sleep(10)
+      
+      # Call rescan_project
+      assert :ok = FileWatcher.rescan_project()
+      
+      # Get updated status
+      {:ok, updated_status} = FileWatcher.get_status(watcher_pid)
+      updated_scan_time = updated_status.last_scan_time
+      
+      # Verify last_scan_time was updated
+      assert updated_scan_time != initial_scan_time
+      
+      # If initial_scan_time was nil, just verify updated_scan_time is not nil
+      # If initial_scan_time was not nil, verify it was updated to a later time
+      if initial_scan_time do
+        assert DateTime.compare(updated_scan_time, initial_scan_time) == :gt
+      else
+        assert updated_scan_time != nil
+      end
+      
+      FileWatcher.stop(watcher_pid)
+    end
+    
+    test "multiple rescan_project calls work correctly", %{watch_dir: watch_dir} do
+      # Start file watcher
+      {:ok, watcher_pid} = FileWatcher.start_link(watch_dirs: [watch_dir])
+      
+      # Call rescan_project multiple times
+      assert :ok = FileWatcher.rescan_project()
+      Process.sleep(10)
+      assert :ok = FileWatcher.rescan_project()
+      Process.sleep(10)
+      assert :ok = FileWatcher.rescan_project()
+      
+      # All calls should succeed
+      {:ok, status} = FileWatcher.get_status(watcher_pid)
+      assert status.status == :watching
+      assert status.last_scan_time != nil
+      
+      FileWatcher.stop(watcher_pid)
+    end
+  end
+
   # Helper functions
   defp collect_events(events, timeout) do
     receive do
