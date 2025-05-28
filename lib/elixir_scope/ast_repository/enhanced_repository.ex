@@ -461,8 +461,8 @@ defmodule ElixirScope.ASTRepository.EnhancedRepository do
   end
   
   def handle_call(:get_statistics, _from, state) do
-    module_count = :ets.select_count(@table_name, [{{:module, :"$1"}, :"$2"}, [], [true]])
-    function_count = :ets.select_count(@table_name, [{{:function, :"$1", :"$2", :"$3"}, :"$4"}, [], [true]])
+    module_count = :ets.select_count(@table_name, [{{{:module, :"$1"}, :"$2"}, [], [true]}])
+    function_count = :ets.select_count(@table_name, [{{{:function, :"$1", :"$2", :"$3"}, :"$4"}, [], [true]}])
     
     stats = %{
       modules: module_count,
