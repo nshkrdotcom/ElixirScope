@@ -13,6 +13,8 @@ Code.compile_file("test/support/ai_test_helpers.ex")
 # Compile AST repository test support modules
 Code.compile_file("test/elixir_scope/ast_repository/test_support/fixtures/sample_asts.ex")
 Code.compile_file("test/elixir_scope/ast_repository/test_support/helpers.ex")
+Code.compile_file("test/elixir_scope/ast_repository/test_support/cfg_validation_helpers.ex")
+Code.compile_file("test/elixir_scope/ast_repository/test_support/dfg_validation_helpers.ex")
 
 # Helper functions for tests
 defmodule ElixirScope.TestHelpers do
