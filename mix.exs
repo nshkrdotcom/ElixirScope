@@ -62,6 +62,9 @@ defmodule ElixirScope.MixProject do
       {:phoenix, "~> 1.7", optional: true},
       {:phoenix_live_view, "~> 0.18", optional: true},
 
+      # File system watching for enhanced repository
+      {:file_system, "~> 0.2"},
+
       # Testing & Quality
       {:ex_doc, "~> 0.31", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: :test},

@@ -114,8 +114,6 @@ defmodule ElixirScope.ASTRepository.ParserEnhancedTest do
       # When: We extract instrumentation points
       {:ok, instrumentation_points} = Parser.extract_instrumentation_points(enhanced_ast)
       
-
-      
       # Then: Controller actions are identified
       action_points = Enum.filter(instrumentation_points, &(&1.type == :controller_action))
       

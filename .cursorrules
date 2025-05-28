@@ -5,3 +5,4 @@
 # Today's date is May 27, 2025.
 # Code mapping guide: CURSOR_CODE_MAPPING.md
 # Implementation guide: CURSOR_IMPLEMENTATION_GUIDE.md
+# Use the `mix` command alias `mixsw` to suppress warnings and show only errors.

@@ -8,7 +8,7 @@ defmodule ElixirScope.ASTRepository.TestSupport.Fixtures.SampleASTs do
   """
   def simple_genserver_ast do
     quote do
-      defmodule TestGenServer do
+      defmodule SimpleGenServer do
         use GenServer
 
         def start_link(opts \\ []) do
@@ -23,13 +23,8 @@ defmodule ElixirScope.ASTRepository.TestSupport.Fixtures.SampleASTs do
           {:reply, state.counter, state}
         end
 
-        def handle_call({:increment, amount}, _from, state) do
-          new_counter = state.counter + amount
-          {:reply, new_counter, %{state | counter: new_counter}}
-        end
-
-        def handle_cast({:set_counter, value}, state) do
-          {:noreply, %{state | counter: value}}
+        def handle_cast(:increment, state) do
+          {:noreply, %{state | counter: state.counter + 1}}
         end
 
         def handle_info(:reset, state) do
@@ -44,35 +39,36 @@ defmodule ElixirScope.ASTRepository.TestSupport.Fixtures.SampleASTs do
   """
   def phoenix_controller_ast do
     quote do
-      defmodule TestController do
+      defmodule SampleController do
         use Phoenix.Controller
 
         def index(conn, _params) do
-          users = get_all_users()
-          render(conn, "index.html", users: users)
+          render(conn, "index.html")
         end
 
         def show(conn, %{"id" => id}) do
-          case get_user(id) do
-            {:ok, user} -> render(conn, "show.html", user: user)
+          case get_item(id) do
+            {:ok, item} -> render(conn, "show.html", item: item)
             {:error, :not_found} -> send_resp(conn, 404, "Not found")
           end
         end
 
-        def create(conn, %{"user" => user_params}) do
-          case create_user(user_params) do
-            {:ok, user} -> 
+        def create(conn, params) do
+          case create_item(params) do
+            {:ok, item} -> 
               conn
-              |> put_flash(:info, "User created successfully")
-              |> redirect(to: "/users/#{user.id}")
+              |> put_status(:created)
+              |> render("show.html", item: item)
             {:error, changeset} ->
-              render(conn, "new.html", changeset: changeset)
+              conn
+              |> put_status(:unprocessable_entity)
+              |> render("new.html", changeset: changeset)
           end
         end
 
-        defp get_all_users, do: []
-        defp get_user(_id), do: {:error, :not_found}
-        defp create_user(_params), do: {:error, %{}}
+        defp get_item(_id), do: {:error, :not_found}
+
+        defp create_item(_params), do: {:error, %{}}
       end
     end
   end
@@ -83,64 +79,43 @@ defmodule ElixirScope.ASTRepository.TestSupport.Fixtures.SampleASTs do
   def complex_module_ast do
     quote do
       defmodule ComplexModule do
-        @moduledoc "Complex module for testing AST parsing"
-
-        @default_timeout 5000
+        @moduledoc "A complex module for testing"
 
         def process_data(data) when is_list(data) do
           data
-          |> validate_data()
-          |> transform_data()
-          |> save_results()
+          |> Enum.filter(&is_valid?/1)
+          |> Enum.map(&transform/1)
+          |> Enum.reduce([], &accumulate/2)
         end
 
         def process_data(data) when is_map(data) do
-          data
-          |> Map.to_list()
-          |> process_data()
-        end
+          case validate_map(data) do
+            {:ok, validated} ->
+              validated
+              |> Map.to_list()
+              |> process_data()
 
-        def process_data(_invalid_data) do
-          {:error, :invalid_input}
-        end
-
-        defp validate_data(data) do
-          case Enum.all?(data, &valid_item?/1) do
-            true -> {:ok, data}
-            false -> {:error, :validation_failed}
+            {:error, reason} ->
+              {:error, reason}
           end
         end
 
-        defp transform_data({:ok, data}) do
-          transformed = Enum.map(data, &transform_item/1)
-          {:ok, transformed}
+        defp is_valid?(item) do
+          not is_nil(item) and item != ""
         end
 
-        defp transform_data({:error, reason}), do: {:error, reason}
-
-        defp save_results({:ok, data}) do
-          case save_to_database(data) do
-            :ok -> {:ok, length(data)}
-            # Note: save_to_database always returns :ok in this test fixture
-          end
+        defp transform(item) do
+          String.upcase(to_string(item))
         end
 
-        defp save_results({:error, reason}), do: {:error, reason}
-
-        defp valid_item?(%{id: id, name: name}) when is_integer(id) and is_binary(name) do
-          String.length(name) > 0
+        defp accumulate(item, acc) do
+          [item | acc]
         end
 
-        defp valid_item?(_), do: false
-
-        defp transform_item(%{id: id, name: name}) do
-          %{id: id, name: String.upcase(name), processed_at: DateTime.utc_now()}
+        defp validate_map(map) when map_size(map) > 0 do
+          {:ok, map}
         end
-
-        defp save_to_database(_data) do
-          Process.sleep(@default_timeout)
-          :ok
-        end
+        defp validate_map(_), do: {:error, :empty_map}
       end
     end
   end
@@ -228,11 +203,6 @@ defmodule ElixirScope.ASTRepository.TestSupport.Fixtures.SampleASTs do
         type: :function_entry,
         function: {:handle_call, 3},
         line: 13
-      },
-      %{
-        type: :function_entry,
-        function: {:handle_call, 3},
-        line: 17
       },
       %{
         type: :function_entry,
