@@ -7,11 +7,28 @@ defmodule ElixirScope.ASTRepository.PatternMatcherTest do
   @moduletag :pattern_matcher
   
   setup do
+    # Stop PatternMatcher if it's already running
+    case GenServer.whereis(PatternMatcher) do
+      nil -> :ok
+      pid -> GenServer.stop(pid)
+    end
+    
     # Start the PatternMatcher for testing
     {:ok, _pid} = PatternMatcher.start_link()
     
     # Clear any existing cache
     PatternMatcher.clear_cache()
+    
+    on_exit(fn ->
+      # Clean up PatternMatcher safely
+      case GenServer.whereis(PatternMatcher) do
+        nil -> :ok
+        pid when is_pid(pid) -> 
+          if Process.alive?(pid) do
+            GenServer.stop(pid)
+          end
+      end
+    end)
     
     :ok
   end

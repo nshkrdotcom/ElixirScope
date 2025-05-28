@@ -268,24 +268,32 @@ defmodule ElixirScope.ASTRepository.ParserEnhancedTest do
       {:ok, instrumentation_points} = Parser.extract_instrumentation_points(enhanced_ast)
       {:ok, _correlation_index} = Parser.build_correlation_index(enhanced_ast, instrumentation_points)
       
-      # When: We set up correlator with enhanced data
-      repo = Helpers.setup_test_repository()
+      # When: We set up EnhancedRepository and RuntimeCorrelator
+      {:ok, enhanced_repo} = ElixirScope.ASTRepository.EnhancedRepository.start_link([])
       
-      # Create ModuleData struct for storage
+      # Store the enhanced module in EnhancedRepository
       module_name = Helpers.extract_module_name_from_ast(enhanced_ast)
-      module_data = ElixirScope.ASTRepository.ModuleData.new(module_name, enhanced_ast)
-      ElixirScope.ASTRepository.Repository.store_module(repo, module_data)
-      {_repo, correlator} = Helpers.setup_test_correlator(repo)
+      {:ok, _enhanced_data} = ElixirScope.ASTRepository.EnhancedRepository.store_enhanced_module(module_name, enhanced_ast)
+      
+      # Start RuntimeCorrelator with EnhancedRepository
+      {:ok, correlator} = ElixirScope.ASTRepository.RuntimeCorrelator.start_link([
+        ast_repo: enhanced_repo,
+        event_store: nil
+      ])
       
       # Then: Correlator can use the correlation index
       # For now, just verify the correlator is working
       # (Full correlation integration will be implemented in Day 2)
       test_event = Helpers.create_test_event()
-      result = ElixirScope.ASTRepository.RuntimeCorrelator.correlate_event(correlator, test_event)
+      result = ElixirScope.ASTRepository.RuntimeCorrelator.correlate_event_to_ast(enhanced_repo, test_event)
       
       # Should either succeed or fail gracefully
       assert match?({:ok, _}, result) or match?({:error, _}, result), 
         "RuntimeCorrelator should handle events gracefully"
+        
+      # Clean up
+      GenServer.stop(correlator)
+      GenServer.stop(enhanced_repo)
     end
   end
 

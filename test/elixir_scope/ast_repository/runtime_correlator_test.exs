@@ -1,11 +1,15 @@
 # test/elixir_scope/ast_repository/runtime_correlator_test.exs
 defmodule ElixirScope.ASTRepository.RuntimeCorrelatorTest do
-  use ExUnit.Case
+  use ExUnit.Case, async: false
   require Logger
   
   alias ElixirScope.ASTRepository.RuntimeCorrelator
   alias ElixirScope.ASTRepository.TestSupport.Helpers
   alias ElixirScope.Utils
+  alias ElixirScope.Events
+  alias ElixirScope.ASTRepository.EnhancedRepository
+  
+  @moduletag :integration
   
   # Helper functions for debugging intermittent failures
   defp ensure_config_available do
@@ -65,264 +69,672 @@ defmodule ElixirScope.ASTRepository.RuntimeCorrelatorTest do
     end)
   end
 
-  describe "AST-Runtime correlation accuracy" do
-    setup do
-      require Logger
-      Logger.info("🧪 RuntimeCorrelatorTest setup starting...")
-      Logger.info("📊 Initial state check:")
-      Logger.info("  - Config PID: #{inspect(GenServer.whereis(ElixirScope.Config))}")
-      Logger.info("  - Registered processes: #{inspect(Process.registered())}")
-      Logger.info("  - Application status: #{inspect(Application.started_applications())}")
-      
-      # Ensure Config is available
-      ensure_config_available()
-      
-      Logger.info("🏗️ Starting Repository...")
-      # Setup repository and correlator
-      repo = Helpers.setup_test_repository(with_samples: true)
-      Logger.info("✅ Repository started: #{inspect(repo)}")
-      
-      Logger.info("🔗 Starting RuntimeCorrelator...")
-      {:ok, correlator} = RuntimeCorrelator.start_link(repository_pid: repo)
-      Logger.info("✅ RuntimeCorrelator started: #{inspect(correlator)}")
-      
-      # Monitor critical processes
-      monitor_test_processes(%{repository: repo, correlator: correlator})
-      
-      on_exit(fn ->
-        Logger.info("🧹 Test cleanup starting...")
-        if Process.alive?(correlator) do
-          GenServer.stop(correlator)
-          Logger.info("🛑 Stopped RuntimeCorrelator: #{inspect(correlator)}")
-        end
-        if Process.alive?(repo) do
-          GenServer.stop(repo)
-          Logger.info("🛑 Stopped Repository: #{inspect(repo)}")
-        end
-        Logger.info("✅ Test cleanup completed")
-      end)
-      
-      Logger.info("🎯 Test setup completed successfully")
-      %{repository: repo, correlator: correlator}
+  setup do
+    # Start the Enhanced AST Repository
+    {:ok, ast_repo} = EnhancedRepository.start_link([])
+    
+    # Stop RuntimeCorrelator if it's already running
+    case GenServer.whereis(RuntimeCorrelator) do
+      nil -> :ok
+      pid -> GenServer.stop(pid)
     end
-
-    test "correlates function entry events to AST nodes with high accuracy", %{correlator: correlator} do
-      # Given: Test events with correlation IDs
-      test_events = [
-        %{
-          correlation_id: "test_corr_1",
-          timestamp: Utils.monotonic_timestamp(),
-          event_type: :function_entry,
-          module: :TestModule,
-          function: :test_function
-        },
-        %{
-          correlation_id: "test_corr_2", 
-          timestamp: Utils.monotonic_timestamp() + 1000,
-          event_type: :function_exit,
-          module: :TestModule,
-          function: :test_function
-        }
-      ]
-      
-      # When: We correlate the events
-      correlation_results = for event <- test_events do
-        case RuntimeCorrelator.correlate_event(correlator, event) do
-          {:ok, {correlation_id, ast_node_id}} -> {:success, correlation_id, ast_node_id}
-          {:error, reason} -> {:error, event.correlation_id, reason}
-        end
+    
+    # Start the RuntimeCorrelator
+    {:ok, correlator} = RuntimeCorrelator.start_link([
+      ast_repo: ast_repo,
+      event_store: nil
+    ])
+    
+    # Create a simple AST for TestModule
+    test_ast = {:defmodule, [], [
+      {:__aliases__, [], [:TestModule]},
+      [do: {:__block__, [], [
+        {:def, [], [
+          {:test_function, [], [{:arg1, [], nil}, {:arg2, [], nil}]},
+          [do: {:ok, [], nil}]
+        ]},
+        {:defp, [], [
+          {:private_function, [], [{:arg1, [], nil}]},
+          [do: {:ok, [], nil}]
+        ]}
+      ]}]
+    ]}
+    
+    # Store the enhanced module with AST
+    {:ok, _enhanced_data} = EnhancedRepository.store_enhanced_module(TestModule, test_ast)
+    
+    on_exit(fn ->
+      # Clean up GenServers safely
+      case GenServer.whereis(RuntimeCorrelator) do
+        nil -> :ok
+        pid when is_pid(pid) -> 
+          if Process.alive?(pid) do
+            GenServer.stop(pid)
+          end
       end
-      
-      # Then: We should get some successful correlations (may not be 100% due to test setup)
-      success_count = Enum.count(correlation_results, &match?({:success, _, _}, &1))
-      total_count = length(correlation_results)
-      
-      # For now, just verify the correlator handles events gracefully
-      assert total_count > 0
-      assert is_integer(success_count)
-      assert success_count >= 0
-    end
-
-    test "get_events_for_ast_node returns chronologically ordered events", %{correlator: correlator} do
-      # Given: We have an AST node ID and some test events
-      ast_node_id = "test_ast_node_123"
-      correlation_id = "test_correlation_456"
-      
-      # First, establish the correlation mapping
-      :ok = RuntimeCorrelator.update_correlation_mapping(correlator, correlation_id, ast_node_id)
-      
-      # Create test events with different timestamps
-      base_time = Utils.monotonic_timestamp()
-      test_events = [
-        %{
-          id: "event_1",
-          correlation_id: correlation_id,
-          timestamp: base_time + 2000,
-          event_type: :function_exit,
-          data: %{result: :ok}
-        },
-        %{
-          id: "event_2", 
-          correlation_id: correlation_id,
-          timestamp: base_time + 1000,
-          event_type: :function_entry,
-          data: %{args: [1, 2]}
-        },
-        %{
-          id: "event_3",
-          correlation_id: correlation_id,
-          timestamp: base_time + 3000,
-          event_type: :expression_value,
-          data: %{value: 42}
-        }
-      ]
-      
-      # Correlate each event to establish the temporal index
-      for event <- test_events do
-        RuntimeCorrelator.correlate_event(correlator, event)
+      case GenServer.whereis(EnhancedRepository) do
+        nil -> :ok
+        pid when is_pid(pid) -> 
+          if Process.alive?(pid) do
+            GenServer.stop(pid)
+          end
       end
-      
-      # When: We query events for the AST node
-      {:ok, retrieved_events} = RuntimeCorrelator.get_events_for_ast_node(correlator, ast_node_id)
-      
-      # Then: Events should be chronologically ordered
-      if length(retrieved_events) > 1 do
-        timestamps = Enum.map(retrieved_events, fn event ->
-          Map.get(event, :timestamp, 0)
-        end)
-        
-        assert timestamps == Enum.sort(timestamps), 
-          "Events should be chronologically ordered, got timestamps: #{inspect(timestamps)}"
-      end
-      
-      # Should have some events (exact count depends on storage implementation)
-      assert is_list(retrieved_events)
-    end
-
-    test "get_correlated_events works as alias for get_events_for_ast_node", %{correlator: correlator} do
-      # Given: An AST node ID
-      ast_node_id = "test_ast_node_alias"
-      
-      # When: We call both functions
-      result1 = RuntimeCorrelator.get_correlated_events(correlator, ast_node_id)
-      result2 = RuntimeCorrelator.get_events_for_ast_node(correlator, ast_node_id)
-      
-      # Then: Results should be identical
-      assert result1 == result2
-    end
-
-    test "handles missing AST node gracefully", %{correlator: correlator} do
-      # Given: A non-existent AST node ID
-      non_existent_ast_node_id = "non_existent_ast_node_999"
-      
-      # When: We query for events
-      result = RuntimeCorrelator.get_events_for_ast_node(correlator, non_existent_ast_node_id)
-      
-      # Then: Should return empty list, not error
-      assert {:ok, []} = result
-    end
-
-    test "correlation statistics are updated correctly", %{correlator: correlator} do
-      # Given: Initial statistics
-      {:ok, initial_stats} = RuntimeCorrelator.get_statistics(correlator)
-      initial_total = Map.get(initial_stats, :total_correlations, 0)
-      
-      # When: We perform some correlations
-      test_event = %{
-        correlation_id: "stats_test_correlation",
-        timestamp: Utils.monotonic_timestamp(),
-        event_type: :test_event
+    end)
+    
+    %{
+      ast_repo: ast_repo,
+      correlator: correlator
+    }
+  end
+  
+  describe "event correlation" do
+    test "correlates function entry event to AST", %{ast_repo: ast_repo} do
+      event = %Events.FunctionEntry{
+        module: TestModule,
+        function: :test_function,
+        arity: 2,
+        args: [:arg1, :arg2],
+        correlation_id: "test_correlation_123",
+        timestamp: System.monotonic_time(:nanosecond),
+        wall_time: System.system_time(:nanosecond)
       }
       
-      RuntimeCorrelator.correlate_event(correlator, test_event)
+      {:ok, ast_context} = RuntimeCorrelator.correlate_event_to_ast(ast_repo, event)
       
-      # Then: Statistics should be updated
-      {:ok, updated_stats} = RuntimeCorrelator.get_statistics(correlator)
-      updated_total = Map.get(updated_stats, :total_correlations, 0)
-      
-      assert updated_total >= initial_total
-      assert is_number(Map.get(updated_stats, :uptime_ms, 0))
+      assert ast_context.module == TestModule
+      assert ast_context.function == :test_function
+      assert ast_context.arity == 2
+      assert ast_context.ast_node_id == "TestModule.test_function/2:line_10"
+      assert ast_context.line_number == 10
+      assert ast_context.ast_metadata.complexity == 5
+      assert ast_context.ast_metadata.visibility == :public
     end
-
-    test "health check returns system status", %{correlator: correlator} do
-      # When: We perform a health check
-      {:ok, health} = RuntimeCorrelator.health_check(correlator)
+    
+    test "correlates function exit event to AST", %{ast_repo: ast_repo} do
+      event = %Events.FunctionExit{
+        module: TestModule,
+        function: :test_function,
+        arity: 2,
+        call_id: "call_123",
+        result: :ok,
+        duration_ns: 1_500_000,
+        exit_reason: :normal,
+        correlation_id: "test_correlation_123",
+        timestamp: System.monotonic_time(:nanosecond),
+        wall_time: System.system_time(:nanosecond)
+      }
       
-      # Then: Should return health information
-      assert is_map(health)
-      assert Map.has_key?(health, :status)
-      assert Map.has_key?(health, :uptime_ms)
-      assert health.status in [:healthy, :warning, :error]
+      {:ok, ast_context} = RuntimeCorrelator.correlate_event_to_ast(ast_repo, event)
+      
+      assert ast_context.module == TestModule
+      assert ast_context.function == :test_function
+      assert ast_context.arity == 2
+      assert ast_context.ast_node_id == "TestModule.test_function/2:line_10"
     end
-
-    test "temporal queries work within time ranges", %{correlator: correlator} do
-      # Given: Events with specific timestamps
-      base_time = Utils.monotonic_timestamp()
-      start_time = base_time
-      end_time = base_time + 5000
+    
+    test "handles correlation for unknown module", %{ast_repo: ast_repo} do
+      event = %Events.FunctionEntry{
+        module: UnknownModule,
+        function: :unknown_function,
+        arity: 0,
+        args: [],
+        correlation_id: "unknown_correlation",
+        timestamp: System.monotonic_time(:nanosecond),
+        wall_time: System.system_time(:nanosecond)
+      }
       
-      # When: We query temporal events
-      result = RuntimeCorrelator.query_temporal_events(correlator, start_time, end_time)
+      {:error, :module_not_found} = RuntimeCorrelator.correlate_event_to_ast(ast_repo, event)
+    end
+    
+    test "handles correlation for unknown function", %{ast_repo: ast_repo} do
+      event = %Events.FunctionEntry{
+        module: TestModule,
+        function: :unknown_function,
+        arity: 0,
+        args: [],
+        correlation_id: "unknown_function_correlation",
+        timestamp: System.monotonic_time(:nanosecond),
+        wall_time: System.system_time(:nanosecond)
+      }
       
-      # Then: Should return events (may be empty for new correlator)
-      assert {:ok, events} = result
-      assert is_list(events)
+      {:error, :function_not_found} = RuntimeCorrelator.correlate_event_to_ast(ast_repo, event)
     end
   end
-
-  describe "batch correlation" do
-    setup do
-      Logger.info("🧪 Batch correlation test setup starting...")
+  
+  describe "runtime context" do
+    test "gets comprehensive runtime context", %{ast_repo: ast_repo} do
+      event = %Events.FunctionEntry{
+        module: TestModule,
+        function: :test_function,
+        arity: 2,
+        args: [:arg1, :arg2],
+        correlation_id: "context_test_123",
+        timestamp: System.monotonic_time(:nanosecond),
+        wall_time: System.system_time(:nanosecond)
+      }
       
-      # Ensure Config is available
-      ensure_config_available()
+      {:ok, context} = RuntimeCorrelator.get_runtime_context(ast_repo, event)
       
-      Logger.info("🏗️ Starting Repository for batch tests...")
-      repo = Helpers.setup_test_repository()
-      Logger.info("✅ Repository started: #{inspect(repo)}")
+      assert context.module == TestModule
+      assert context.function == :test_function
+      assert context.arity == 2
+      assert context.ast_node_id == "TestModule.test_function/2:line_10"
+      assert context.variable_scope.local_variables == %{}
+      assert context.variable_scope.scope_level == 10
+    end
+    
+    test "handles context for event without variables", %{ast_repo: ast_repo} do
+      event = %Events.FunctionEntry{
+        module: TestModule,
+        function: :private_function,
+        arity: 1,
+        args: [:arg1],
+        correlation_id: "no_vars_123",
+        timestamp: System.monotonic_time(:nanosecond),
+        wall_time: System.system_time(:nanosecond)
+      }
       
-      Logger.info("🔗 Starting RuntimeCorrelator for batch tests...")
-      {:ok, correlator} = RuntimeCorrelator.start_link(repository_pid: repo)
-      Logger.info("✅ RuntimeCorrelator started: #{inspect(correlator)}")
+      {:ok, context} = RuntimeCorrelator.get_runtime_context(ast_repo, event)
       
-      # Monitor critical processes
-      monitor_test_processes(%{repository: repo, correlator: correlator})
+      assert context.module == TestModule
+      assert context.function == :private_function
+      assert context.variable_scope.local_variables == %{}
+    end
+  end
+  
+  describe "event enhancement" do
+    test "enhances event with AST metadata", %{ast_repo: ast_repo} do
+      event = %Events.FunctionEntry{
+        module: TestModule,
+        function: :test_function,
+        arity: 2,
+        args: [:arg1, :arg2],
+        correlation_id: "enhance_test_123",
+        timestamp: System.monotonic_time(:nanosecond),
+        wall_time: System.system_time(:nanosecond)
+      }
       
-      on_exit(fn ->
-        Logger.info("🧹 Batch test cleanup starting...")
-        if Process.alive?(correlator) do
-          GenServer.stop(correlator)
-          Logger.info("🛑 Stopped RuntimeCorrelator: #{inspect(correlator)}")
-        end
-        if Process.alive?(repo) do
-          GenServer.stop(repo)
-          Logger.info("🛑 Stopped Repository: #{inspect(repo)}")
-        end
-        Logger.info("✅ Batch test cleanup completed")
+      {:ok, enhanced_event} = RuntimeCorrelator.enhance_event_with_ast(ast_repo, event)
+      
+      assert enhanced_event.original_event == event
+      assert enhanced_event.ast_context.module == TestModule
+      assert enhanced_event.ast_context.function == :test_function
+      assert enhanced_event.correlation_metadata.correlation_version == "1.0"
+      assert enhanced_event.structural_info.ast_node_type == :function_call
+      assert enhanced_event.structural_info.structural_depth == 1
+    end
+    
+    test "handles enhancement for invalid event", %{ast_repo: ast_repo} do
+      event = %{
+        invalid: :event,
+        timestamp: System.monotonic_time(:nanosecond)
+      }
+      
+      {:error, :missing_module} = RuntimeCorrelator.enhance_event_with_ast(ast_repo, event)
+    end
+  end
+  
+  describe "execution trace building" do
+    test "builds AST-aware execution trace", %{ast_repo: ast_repo} do
+      events = [
+        %Events.FunctionEntry{
+          module: TestModule,
+          function: :test_function,
+          arity: 2,
+          args: [:arg1, :arg2],
+          correlation_id: "trace_test_1",
+          timestamp: System.monotonic_time(:nanosecond),
+          wall_time: System.system_time(:nanosecond)
+        },
+        %Events.FunctionExit{
+          module: TestModule,
+          function: :test_function,
+          arity: 2,
+          call_id: "call_1",
+          result: :ok,
+          duration_ns: 1_000_000,
+          exit_reason: :normal,
+          correlation_id: "trace_test_1",
+          timestamp: System.monotonic_time(:nanosecond),
+          wall_time: System.system_time(:nanosecond)
+        },
+        %Events.FunctionEntry{
+          module: TestModule,
+          function: :private_function,
+          arity: 1,
+          args: [:arg1],
+          correlation_id: "trace_test_2",
+          timestamp: System.monotonic_time(:nanosecond),
+          wall_time: System.system_time(:nanosecond)
+        }
+      ]
+      
+      {:ok, trace} = RuntimeCorrelator.build_execution_trace(ast_repo, events)
+      
+      assert length(trace.events) == 3
+      assert length(trace.ast_flow) == 3
+      assert trace.trace_metadata.event_count == 3
+      assert trace.trace_metadata.correlation_version == "1.0"
+      
+      # Check AST flow
+      ast_flow = trace.ast_flow
+      assert Enum.at(ast_flow, 0).ast_node_id == "TestModule.test_function/2:line_10"
+      assert Enum.at(ast_flow, 1).ast_node_id == "TestModule.test_function/2:line_10"
+      assert Enum.at(ast_flow, 2).ast_node_id == "TestModule.private_function/1:line_25"
+      
+      # Check structural patterns
+      assert length(trace.structural_patterns) > 0
+      pattern = hd(trace.structural_patterns)
+      assert pattern.pattern_type == :function_call
+      assert pattern.occurrences == 3
+    end
+    
+    test "builds trace with variable flow", %{ast_repo: ast_repo} do
+      events = [
+        %Events.FunctionEntry{
+          module: TestModule,
+          function: :test_function,
+          arity: 2,
+          args: [:arg1, :arg2],
+          correlation_id: "var_trace_1",
+          timestamp: 1000,
+          wall_time: System.system_time(:nanosecond)
+        },
+        %{
+          event_type: :local_variable_snapshot,
+          module: TestModule,
+          function: :test_function,
+          correlation_id: "var_trace_1",
+          timestamp: 1500,
+          variables: %{"x" => 1, "y" => "start"}
+        },
+        %{
+          event_type: :local_variable_snapshot,
+          module: TestModule,
+          function: :test_function,
+          correlation_id: "var_trace_1",
+          timestamp: 2000,
+          variables: %{"x" => 2, "y" => "middle", "z" => true}
+        },
+        %{
+          event_type: :local_variable_snapshot,
+          module: TestModule,
+          function: :test_function,
+          correlation_id: "var_trace_1",
+          timestamp: 2500,
+          variables: %{"x" => 3, "y" => "end"}
+        },
+        %Events.FunctionExit{
+          module: TestModule,
+          function: :test_function,
+          arity: 2,
+          call_id: "call_1",
+          result: :ok,
+          duration_ns: 2_000_000,
+          exit_reason: :normal,
+          correlation_id: "var_trace_1",
+          timestamp: 3000,
+          wall_time: System.system_time(:nanosecond)
+        }
+      ]
+      
+      {:ok, trace} = RuntimeCorrelator.build_execution_trace(ast_repo, events)
+      
+      # Check variable flow
+      variable_flow = trace.variable_flow
+      assert Map.has_key?(variable_flow, "x")
+      assert Map.has_key?(variable_flow, "y")
+      assert Map.has_key?(variable_flow, "z")
+      
+      x_history = variable_flow["x"]
+      assert length(x_history) == 3
+      assert Enum.at(x_history, 0).value == 1
+      assert Enum.at(x_history, 1).value == 2
+      assert Enum.at(x_history, 2).value == 3
+      
+      y_history = variable_flow["y"]
+      assert length(y_history) == 3
+      assert Enum.at(y_history, 0).value == "start"
+      assert Enum.at(y_history, 1).value == "middle"
+      assert Enum.at(y_history, 2).value == "end"
+      
+      z_history = variable_flow["z"]
+      assert length(z_history) == 1
+      assert Enum.at(z_history, 0).value == true
+    end
+    
+    test "handles empty event list", %{ast_repo: ast_repo} do
+      {:ok, trace} = RuntimeCorrelator.build_execution_trace(ast_repo, [])
+      
+      assert trace.events == []
+      assert trace.ast_flow == []
+      assert trace.variable_flow == %{}
+      assert trace.structural_patterns == []
+      assert trace.trace_metadata.event_count == 0
+    end
+  end
+  
+  describe "structural breakpoints" do
+    test "sets and validates structural breakpoint" do
+      breakpoint_spec = %{
+        pattern: quote(do: {:handle_call, _, _}),
+        condition: :pattern_match_failure,
+        ast_path: ["TestModule", "handle_call"],
+        enabled: true,
+        metadata: %{description: "Test breakpoint"}
+      }
+      
+      {:ok, breakpoint_id} = RuntimeCorrelator.set_structural_breakpoint(breakpoint_spec)
+      
+      assert is_binary(breakpoint_id)
+      assert String.starts_with?(breakpoint_id, "structural_bp_")
+    end
+    
+    test "validates structural breakpoint pattern" do
+      invalid_spec = %{
+        pattern: nil,
+        condition: :any
+      }
+      
+      {:error, :invalid_pattern} = RuntimeCorrelator.set_structural_breakpoint(invalid_spec)
+    end
+    
+    test "sets structural breakpoint with default values" do
+      minimal_spec = %{
+        pattern: quote(do: {:test, _})
+      }
+      
+      {:ok, breakpoint_id} = RuntimeCorrelator.set_structural_breakpoint(minimal_spec)
+      assert is_binary(breakpoint_id)
+    end
+  end
+  
+  describe "data flow breakpoints" do
+    test "sets and validates data flow breakpoint" do
+      breakpoint_spec = %{
+        variable: "user_id",
+        ast_path: ["TestModule", "authenticate"],
+        flow_conditions: [:assignment, :pattern_match],
+        enabled: true,
+        metadata: %{description: "Track user_id flow"}
+      }
+      
+      {:ok, breakpoint_id} = RuntimeCorrelator.set_data_flow_breakpoint(breakpoint_spec)
+      
+      assert is_binary(breakpoint_id)
+      assert String.starts_with?(breakpoint_id, "data_flow_bp_")
+    end
+    
+    test "validates data flow breakpoint variable" do
+      invalid_spec = %{
+        variable: nil,
+        ast_path: ["TestModule"]
+      }
+      
+      {:error, :invalid_variable} = RuntimeCorrelator.set_data_flow_breakpoint(invalid_spec)
+    end
+  end
+  
+  describe "semantic watchpoints" do
+    test "sets and validates semantic watchpoint" do
+      watchpoint_spec = %{
+        variable: "state",
+        track_through: [:pattern_match, :function_call],
+        ast_scope: "TestModule.handle_call/3",
+        enabled: true,
+        metadata: %{description: "Track state variable"}
+      }
+      
+      {:ok, watchpoint_id} = RuntimeCorrelator.set_semantic_watchpoint(watchpoint_spec)
+      
+      assert is_binary(watchpoint_id)
+      assert String.starts_with?(watchpoint_id, "wp_")
+    end
+    
+    test "validates semantic watchpoint variable" do
+      invalid_spec = %{
+        variable: nil,
+        track_through: [:all]
+      }
+      
+      {:error, :invalid_variable} = RuntimeCorrelator.set_semantic_watchpoint(invalid_spec)
+    end
+  end
+  
+  describe "performance and caching" do
+    test "correlation performance is within target", %{ast_repo: ast_repo} do
+      event = %Events.FunctionEntry{
+        module: TestModule,
+        function: :test_function,
+        arity: 2,
+        args: [:arg1, :arg2],
+        correlation_id: "perf_test_123",
+        timestamp: System.monotonic_time(:nanosecond),
+        wall_time: System.system_time(:nanosecond)
+      }
+      
+      start_time = System.monotonic_time(:millisecond)
+      {:ok, _ast_context} = RuntimeCorrelator.correlate_event_to_ast(ast_repo, event)
+      end_time = System.monotonic_time(:millisecond)
+      
+      duration = end_time - start_time
+      assert duration < 5, "Correlation took #{duration}ms, target is <1ms"
+    end
+    
+    test "caching improves performance", %{ast_repo: ast_repo} do
+      event = %Events.FunctionEntry{
+        module: TestModule,
+        function: :test_function,
+        arity: 2,
+        args: [:arg1, :arg2],
+        correlation_id: "cache_test_123",
+        timestamp: System.monotonic_time(:nanosecond),
+        wall_time: System.system_time(:nanosecond)
+      }
+      
+      # First call (cache miss)
+      start_time1 = System.monotonic_time(:microsecond)
+      {:ok, _ast_context1} = RuntimeCorrelator.correlate_event_to_ast(ast_repo, event)
+      end_time1 = System.monotonic_time(:microsecond)
+      duration1 = end_time1 - start_time1
+      
+      # Second call (cache hit)
+      start_time2 = System.monotonic_time(:microsecond)
+      {:ok, _ast_context2} = RuntimeCorrelator.correlate_event_to_ast(ast_repo, event)
+      end_time2 = System.monotonic_time(:microsecond)
+      duration2 = end_time2 - start_time2
+      
+      # Cache hit should be faster
+      assert duration2 < duration1, "Cache hit (#{duration2}µs) should be faster than miss (#{duration1}µs)"
+    end
+    
+    test "gets correlation statistics" do
+      {:ok, stats} = RuntimeCorrelator.get_correlation_stats()
+      
+      assert Map.has_key?(stats, :correlation)
+      assert Map.has_key?(stats, :cache)
+      assert Map.has_key?(stats, :breakpoints)
+      assert Map.has_key?(stats, :watchpoints)
+      
+      assert Map.has_key?(stats.correlation, :events_correlated)
+      assert Map.has_key?(stats.correlation, :context_lookups)
+      assert Map.has_key?(stats.correlation, :cache_hits)
+      assert Map.has_key?(stats.correlation, :cache_misses)
+    end
+    
+    test "clears caches successfully", %{ast_repo: ast_repo} do
+      # Perform some operations to populate cache
+      event = %Events.FunctionEntry{
+        module: TestModule,
+        function: :test_function,
+        arity: 2,
+        args: [:arg1, :arg2],
+        correlation_id: "clear_cache_test",
+        timestamp: System.monotonic_time(:nanosecond),
+        wall_time: System.system_time(:nanosecond)
+      }
+      
+      {:ok, _} = RuntimeCorrelator.correlate_event_to_ast(ast_repo, event)
+      
+      # Clear caches
+      :ok = RuntimeCorrelator.clear_caches()
+      
+      # Verify caches are cleared
+      {:ok, stats} = RuntimeCorrelator.get_correlation_stats()
+      assert stats.cache.context_cache_size == 0
+      assert stats.cache.trace_cache_size == 0
+    end
+  end
+  
+  describe "integration with existing systems" do
+    test "correlates with Cinema Demo event format", %{ast_repo: ast_repo} do
+      # Test with Cinema Demo style event
+      cinema_event = %{
+        "event_type" => "function_entry",
+        "module" => TestModule,
+        "function" => :test_function,
+        "arity" => 2,
+        "correlation_id" => "cinema_test_123",
+        "timestamp" => System.monotonic_time(:nanosecond)
+      }
+      
+      {:ok, ast_context} = RuntimeCorrelator.correlate_event_to_ast(ast_repo, cinema_event)
+      
+      assert ast_context.module == TestModule
+      assert ast_context.function == :test_function
+      assert ast_context.arity == 2
+    end
+    
+    test "handles EventStore event format", %{ast_repo: ast_repo} do
+      # Test with EventStore style event
+      event_store_event = %{
+        event_type: :function_entry,
+        data: %{
+          module: TestModule,
+          function: :test_function,
+          arity: 2,
+          args: [:arg1, :arg2]
+        },
+        correlation_id: "event_store_test_123",
+        timestamp: System.monotonic_time(:nanosecond),
+        metadata: %{source: :instrumentation}
+      }
+      
+      # Extract data for correlation
+      extracted_event = Map.merge(event_store_event.data, %{
+        correlation_id: event_store_event.correlation_id,
+        timestamp: event_store_event.timestamp
+      })
+      
+      {:ok, ast_context} = RuntimeCorrelator.correlate_event_to_ast(ast_repo, extracted_event)
+      
+      assert ast_context.module == TestModule
+      assert ast_context.function == :test_function
+    end
+    
+    test "performance meets EventStore requirements", %{ast_repo: ast_repo} do
+      # Test that correlation overhead is minimal for high-volume scenarios
+      events = Enum.map(1..100, fn i ->
+        %Events.FunctionEntry{
+          module: TestModule,
+          function: :test_function,
+          arity: 2,
+          args: [:arg1, :arg2],
+          correlation_id: "perf_test_#{i}",
+          timestamp: System.monotonic_time(:nanosecond),
+          wall_time: System.system_time(:nanosecond)
+        }
       end)
       
-      %{repository: repo, correlator: correlator}
+      start_time = System.monotonic_time(:millisecond)
+      
+      results = Enum.map(events, fn event ->
+        RuntimeCorrelator.correlate_event_to_ast(ast_repo, event)
+      end)
+      
+      end_time = System.monotonic_time(:millisecond)
+      duration = end_time - start_time
+      
+      # All correlations should succeed
+      assert Enum.all?(results, fn result -> match?({:ok, _}, result) end)
+      
+      # Average correlation time should be well under target
+      avg_time = duration / length(events)
+      assert avg_time < 1.0, "Average correlation time #{avg_time}ms exceeds 1ms target"
     end
-
-    test "correlates multiple events efficiently", %{correlator: correlator} do
-      # Given: Multiple test events
-      base_time = Utils.monotonic_timestamp()
-      test_events = for i <- 1..5 do
+  end
+  
+  describe "error handling and edge cases" do
+    test "handles malformed events gracefully", %{ast_repo: ast_repo} do
+      malformed_events = [
+        %{},  # Empty map
+        %{module: nil, function: nil},  # Nil values
+        %{module: "not_atom", function: "not_atom"},  # String instead of atom
+        %{timestamp: "not_number"},  # Invalid timestamp
+        nil  # Nil event
+      ]
+      
+      Enum.each(malformed_events, fn event ->
+        result = RuntimeCorrelator.correlate_event_to_ast(ast_repo, event)
+        assert match?({:error, _}, result), "Expected error for malformed event: #{inspect(event)}"
+      end)
+    end
+    
+    test "handles concurrent access safely", %{ast_repo: ast_repo} do
+      # Test concurrent correlation requests
+      tasks = Enum.map(1..50, fn i ->
+        Task.async(fn ->
+          event = %Events.FunctionEntry{
+            module: TestModule,
+            function: :test_function,
+            arity: 2,
+            args: [:arg1, :arg2],
+            correlation_id: "concurrent_test_#{i}",
+            timestamp: System.monotonic_time(:nanosecond),
+            wall_time: System.system_time(:nanosecond)
+          }
+          
+          RuntimeCorrelator.correlate_event_to_ast(ast_repo, event)
+        end)
+      end)
+      
+      results = Task.await_many(tasks, 5000)
+      
+      # All tasks should complete successfully
+      assert length(results) == 50
+      assert Enum.all?(results, fn result -> match?({:ok, _}, result) end)
+    end
+    
+    test "handles memory pressure gracefully" do
+      # Test with large number of breakpoints and watchpoints
+      breakpoint_specs = Enum.map(1..100, fn i ->
         %{
-          correlation_id: "batch_test_#{i}",
-          timestamp: base_time + i * 1000,
-          event_type: :batch_test,
-          data: %{index: i}
+          pattern: quote(do: {:test_pattern, unquote(i)}),
+          condition: :any,
+          metadata: %{test_id: i}
         }
-      end
+      end)
       
-      # When: We batch correlate events
-      result = RuntimeCorrelator.correlate_events(correlator, test_events)
+      watchpoint_specs = Enum.map(1..100, fn i ->
+        %{
+          variable: "test_var_#{i}",
+          track_through: [:all],
+          metadata: %{test_id: i}
+        }
+      end)
       
-      # Then: Should handle batch correlation
-      assert {:ok, correlations} = result
-      assert is_list(correlations)
-      # Correlations may be empty if no mappings exist, but should not error
+      # Set all breakpoints and watchpoints
+      breakpoint_results = Enum.map(breakpoint_specs, &RuntimeCorrelator.set_structural_breakpoint/1)
+      watchpoint_results = Enum.map(watchpoint_specs, &RuntimeCorrelator.set_semantic_watchpoint/1)
+      
+      # All should succeed
+      assert Enum.all?(breakpoint_results, fn result -> match?({:ok, _}, result) end)
+      assert Enum.all?(watchpoint_results, fn result -> match?({:ok, _}, result) end)
+      
+      # System should still be responsive
+      {:ok, stats} = RuntimeCorrelator.get_correlation_stats()
+      assert stats.breakpoints.structural == 100
+      assert stats.watchpoints == 100
     end
   end
 end

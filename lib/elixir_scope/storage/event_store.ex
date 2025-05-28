@@ -204,11 +204,34 @@ defmodule ElixirScope.Storage.EventStore do
     # Apply post-filtering
     events
     |> apply_filters(filters)
-    |> apply_limit(Keyword.get(filters, :limit))
+    |> apply_limit(get_limit(filters))
     |> Enum.sort_by(& &1.timestamp)
   end
   
-  defp determine_optimal_index(filters) do
+  defp determine_optimal_index(filters) when is_map(filters) do
+    cond do
+      Map.has_key?(filters, :timestamp_since) or Map.has_key?(filters, :timestamp_until) ->
+        since = Map.get(filters, :timestamp_since, 0)
+        until = Map.get(filters, :timestamp_until, :infinity)
+        {:temporal, since, until}
+      
+      Map.has_key?(filters, :since) or Map.has_key?(filters, :until) ->
+        since = Map.get(filters, :since, 0)
+        until = Map.get(filters, :until, :infinity)
+        {:temporal, since, until}
+      
+      Map.has_key?(filters, :pid) ->
+        {:process, Map.get(filters, :pid)}
+      
+      Map.has_key?(filters, :event_type) ->
+        {:event_type, Map.get(filters, :event_type)}
+      
+      true ->
+        :full_scan
+    end
+  end
+  
+  defp determine_optimal_index(filters) when is_list(filters) do
     cond do
       Keyword.has_key?(filters, :since) or Keyword.has_key?(filters, :until) ->
         since = Keyword.get(filters, :since, 0)
@@ -256,7 +279,15 @@ defmodule ElixirScope.Storage.EventStore do
     :ets.select(state.primary_table, [{{:"$1", :"$2"}, [], [:"$1"]}])
   end
   
-  defp apply_filters(events, filters) do
+  defp apply_filters(events, filters) when is_map(filters) do
+    events
+    |> filter_by_pid(Map.get(filters, :pid))
+    |> filter_by_event_type(Map.get(filters, :event_type))
+    |> filter_by_time_range(Map.get(filters, :since), Map.get(filters, :until))
+    |> filter_by_time_range(Map.get(filters, :timestamp_since), Map.get(filters, :timestamp_until))
+  end
+  
+  defp apply_filters(events, filters) when is_list(filters) do
     events
     |> filter_by_pid(Keyword.get(filters, :pid))
     |> filter_by_event_type(Keyword.get(filters, :event_type))
@@ -292,4 +323,12 @@ defmodule ElixirScope.Storage.EventStore do
     Enum.take(events, limit)
   end
   defp apply_limit(events, _), do: events
+  
+  defp get_limit(filters) when is_map(filters) do
+    Map.get(filters, :limit)
+  end
+  
+  defp get_limit(filters) when is_list(filters) do
+    Keyword.get(filters, :limit)
+  end
 end 
