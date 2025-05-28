@@ -1,7 +1,7 @@
 defmodule ElixirScope.ASTRepository.CFGGeneratorTest do
   use ExUnit.Case, async: true
   
-  alias ElixirScope.ASTRepository.Enhanced.{CFGGenerator, CFGData, CFGNode, CFGEdge}
+  alias ElixirScope.ASTRepository.Enhanced.{CFGGenerator, CFGData}
   alias ElixirScope.ASTRepository.TestSupport.Fixtures.SampleASTs
   alias ElixirScope.TestHelpers
 

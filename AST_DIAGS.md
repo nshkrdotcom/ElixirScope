@@ -250,7 +250,7 @@ sequenceDiagram
 ## 6. Storage and Query Architecture
 
 ```mermaid
-graph TB
+graph LR
     subgraph "ETS Storage Layer"
         subgraph "Core Tables"
             MOD_T[":ast_modules_enhanced<br/>Module storage"]
