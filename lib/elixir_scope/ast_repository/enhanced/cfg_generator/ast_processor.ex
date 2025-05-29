@@ -1,145 +1,353 @@
 defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTProcessor do
   @moduledoc """
-  Processes AST nodes to build the Control Flow Graph by dispatching to specialized handlers.
+  Main AST processing functions for the CFG generator.
   """
 
-  alias ElixirScope.ASTRepository.Enhanced.{
-    # CFGNode, # No longer directly creating nodes here
-    # CFGEdge, # No longer directly creating edges here
-    # ScopeInfo, # No longer directly creating scopes here
-    CFGGenerator.Utils,
-    CFGGenerator.NodeBuilder,
-    CFGGenerator.ConditionalHandler,
-    CFGGenerator.ExceptionHandler,
-    CFGGenerator.SequentialHandler,
-    CFGGenerator.BinaryOperatorHandler
+  alias ElixirScope.ASTRepository.Enhanced.{CFGNode, CFGEdge, ScopeInfo}
+  alias ElixirScope.ASTRepository.Enhanced.CFGGenerator.{
+    StateManager, ASTUtilities, ControlFlowProcessors, ExpressionProcessors
   }
 
-  # Public API
+  @doc """
+  Processes a function body AST and returns CFG components.
+  """
+  def process_function_body({:def, meta, [head, [do: body]]}, state) do
+    process_function_body({:defp, meta, [head, [do: body]]}, state)
+  end
+
+  def process_function_body({:defp, meta, [head, [do: body]]}, state) do
+    line = ASTUtilities.get_line_number(meta)
+
+    # Extract function parameters and check for guards
+    {function_params, guard_ast} = case head do
+      {:when, _, [func_head, guard]} ->
+        # Function has a guard
+        {ASTUtilities.extract_function_parameters(func_head), guard}
+      func_head ->
+        # No guard
+        {ASTUtilities.extract_function_parameters(func_head), nil}
+    end
+
+    # Create function scope
+    function_scope = %ScopeInfo{
+      id: state.current_scope,
+      type: :function,
+      parent_scope: nil,
+      child_scopes: [],
+      variables: function_params,
+      ast_node_id: ASTUtilities.get_ast_node_id(meta),
+      entry_points: [state.entry_node],
+      exit_points: [],
+      metadata: %{function_head: head, guard: guard_ast}
+    }
+
+    # Create entry node
+    entry_node = %CFGNode{
+      id: state.entry_node,
+      type: :entry,
+      ast_node_id: ASTUtilities.get_ast_node_id(meta),
+      line: line,
+      scope_id: state.current_scope,
+      expression: head,
+      predecessors: [],
+      successors: [],
+      metadata: %{function_head: head, guard: guard_ast}
+    }
+
+    initial_state = %{state | nodes: %{state.entry_node => entry_node}}
+
+    # Process guard if present
+    {guard_nodes, guard_edges, guard_exits, guard_scopes, guard_state} =
+      if guard_ast do
+        process_ast_node(guard_ast, initial_state)
+      else
+        {%{}, [], [state.entry_node], %{}, initial_state}
+      end
+
+    # Process function body
+    {body_nodes, body_edges, body_exits, body_scopes, updated_state} =
+      process_ast_node(body, guard_state)
+
+    # Connect entry to guard (if present) or directly to body
+    entry_connections = build_entry_connections(state.entry_node, guard_ast, guard_nodes, body_nodes)
+
+    # Connect guard to body (if guard exists)
+    guard_to_body_edges = build_guard_to_body_connections(guard_ast, guard_exits, body_nodes)
+
+    # Create exit node
+    {exit_node_id, final_state} = StateManager.generate_node_id("exit", updated_state)
+    exit_node = %CFGNode{
+      id: exit_node_id,
+      type: :exit,
+      ast_node_id: nil,
+      line: line,
+      scope_id: state.current_scope,
+      expression: nil,
+      predecessors: body_exits,
+      successors: [],
+      metadata: %{}
+    }
+
+    # Connect body exits to function exit
+    exit_edges = build_exit_connections(body_exits, exit_node_id)
+
+    # Handle empty function body case
+    direct_entry_to_exit_edges = build_direct_entry_to_exit_connections(
+      body_exits, guard_exits, state.entry_node, exit_node_id
+    )
+
+    all_nodes = guard_nodes
+    |> Map.merge(body_nodes)
+    |> Map.put(state.entry_node, entry_node)
+    |> Map.put(exit_node_id, exit_node)
+
+    all_edges = entry_connections ++ guard_edges ++ guard_to_body_edges ++
+                body_edges ++ exit_edges ++ direct_entry_to_exit_edges
+    all_scopes = Map.merge(guard_scopes, body_scopes)
+    |> Map.put(state.current_scope, function_scope)
+
+    {all_nodes, all_edges, [exit_node_id], all_scopes, final_state}
+  end
+
+  def process_function_body(malformed_ast, _state) do
+    # Handle any malformed or unexpected AST structure
+    {:error, {:cfg_generation_failed, "Invalid AST structure: #{inspect(malformed_ast)}"}}
+  end
+
+  @doc """
+  Main AST node processing dispatcher.
+  """
   def process_ast_node(ast, state) do
-    # The main AST node processor - delegates to specialized handlers
-    # or NodeBuilder for simpler constructs.
-    # The `ast_processor_func` argument for handlers is `&process_ast_node/2` itself.
-
     case ast do
-      # --- Sequential Handlers ---
+      # Block of statements - put this FIRST to ensure it matches before function call pattern
       {:__block__, meta, statements} ->
-        SequentialHandler.handle_statement_sequence(statements, meta, state, &process_ast_node/2)
+        ExpressionProcessors.process_statement_sequence(statements, meta, state)
 
+      # Assignment with pattern matching - put this early to ensure it matches
       {:=, meta, [pattern, expression]} ->
-        SequentialHandler.handle_assignment(pattern, expression, meta, state, &process_ast_node/2)
+        ExpressionProcessors.process_assignment(pattern, expression, meta, state)
 
-      {:|>, meta, [left, right]} ->
-        SequentialHandler.handle_pipe_operation(left, right, meta, state, &process_ast_node/2)
-        
-      # --- Conditional Handlers ---
+      # Comprehensions - put this FIRST to ensure it matches
+      {:for, meta, clauses} ->
+        ExpressionProcessors.process_comprehension(clauses, meta, state)
+
+      # Case statement - Elixir's primary pattern matching construct
       {:case, meta, [condition, [do: clauses]]} ->
-        ConditionalHandler.handle_case_statement(condition, clauses, meta, state, &process_ast_node/2)
+        ControlFlowProcessors.process_case_statement(condition, clauses, meta, state)
 
+      # If statement with optional else
       {:if, meta, [condition, clauses]} when is_list(clauses) ->
         then_branch = Keyword.get(clauses, :do)
         else_clause = case Keyword.get(clauses, :else) do
           nil -> []
           else_branch -> [else: else_branch]
         end
-        ConditionalHandler.handle_if_statement(condition, then_branch, else_clause, meta, state, &process_ast_node/2)
+        ControlFlowProcessors.process_if_statement(condition, then_branch, else_clause, meta, state)
 
-      {:unless, meta, [condition, clauses]} when is_list(clauses) ->
-        ConditionalHandler.handle_unless_statement(condition, clauses, meta, state, &process_ast_node/2)
+      # Cond statement - multiple conditions
+      {:cond, meta, [[do: clauses]]} ->
+        ControlFlowProcessors.process_cond_statement(clauses, meta, state)
 
-      {:cond, meta, [[do: clauses]]} -> # Note: [[do: clauses]] pattern from original
-        ConditionalHandler.handle_cond_statement(clauses, meta, state, &process_ast_node/2)
-
-      # --- Exception Handlers ---
+      # Try-catch-rescue-after
       {:try, meta, blocks} ->
-        ExceptionHandler.handle_try_statement(blocks, meta, state, &process_ast_node/2)
+        ControlFlowProcessors.process_try_statement(blocks, meta, state)
 
+      # With statement - error handling pipeline
       {:with, meta, clauses} ->
-        ExceptionHandler.handle_with_statement(clauses, meta, state, &process_ast_node/2)
+        ControlFlowProcessors.process_with_statement(clauses, meta, state)
 
-      # --- Binary Operation Handler ---
-      {op, meta, [left, right]} when op in [:+, :-, :*, :/, :==, :!=, :<, :>, :<=, :>=, :and, :or, :&&, :||] ->
-        BinaryOperatorHandler.handle_binary_operation(op, left, right, meta, state, &process_ast_node/2)
+      # Pipe operation - data transformation pipeline
+      {:|>, meta, [left, right]} ->
+        ExpressionProcessors.process_pipe_operation(left, right, meta, state)
 
-      # --- NodeBuilder Delegations (Simpler Constructs) ---
-      {:for, meta, clauses} ->
-        NodeBuilder.build_comprehension_node(clauses, meta, state)
-
+      # Function call with module
       {{:., meta1, [module, func_name]}, meta2, args} ->
-        NodeBuilder.build_module_function_call_node(module, func_name, args, meta1, meta2, state)
+        ExpressionProcessors.process_module_function_call(module, func_name, args, meta1, meta2, state)
 
+      # Function call
       {func_name, meta, args} when is_atom(func_name) ->
-        NodeBuilder.build_function_call_node(func_name, args, meta, state)
+        ExpressionProcessors.process_function_call(func_name, args, meta, state)
 
+      # Receive statement
+      {:receive, meta, clauses} ->
+        ControlFlowProcessors.process_receive_statement(clauses, meta, state)
+
+      # Unless statement (negative conditional)
+      {:unless, meta, [condition, clauses]} when is_list(clauses) ->
+        ControlFlowProcessors.process_unless_statement(condition, clauses, meta, state)
+
+      # When guard expressions
       {:when, meta, [expr, guard]} ->
-        NodeBuilder.build_when_guard_node(expr, guard, meta, state)
+        ExpressionProcessors.process_when_guard(expr, guard, meta, state)
 
+      # Anonymous function
       {:fn, meta, clauses} ->
-        NodeBuilder.build_anonymous_function_node(clauses, meta, state)
+        ExpressionProcessors.process_anonymous_function(clauses, meta, state)
 
+      # Exception handling
       {:raise, meta, args} ->
-        NodeBuilder.build_raise_node(args, meta, state)
+        ExpressionProcessors.process_raise_statement(args, meta, state)
 
       {:throw, meta, [value]} ->
-        NodeBuilder.build_throw_node(value, meta, state)
+        ExpressionProcessors.process_throw_statement(value, meta, state)
 
       {:exit, meta, [reason]} ->
-        NodeBuilder.build_exit_node(reason, meta, state)
+        ExpressionProcessors.process_exit_statement(reason, meta, state)
 
+      # Concurrency
       {:spawn, meta, args} ->
-        NodeBuilder.build_spawn_node(args, meta, state)
+        ExpressionProcessors.process_spawn_statement(args, meta, state)
 
       {:send, meta, [pid, message]} ->
-        NodeBuilder.build_send_node(pid, message, meta, state)
+        ExpressionProcessors.process_send_statement(pid, message, meta, state)
 
+      # Binary operations
+      {op, meta, [left, right]} when op in [:+, :-, :*, :/, :==, :!=, :<, :>, :<=, :>=, :and, :or, :&&, :||] ->
+        ExpressionProcessors.process_binary_operation(op, left, right, meta, state)
+
+      # Unary operations
       {op, meta, [operand]} when op in [:not, :!, :+, :-] ->
-        NodeBuilder.build_unary_operation_node(op, operand, meta, state)
+        ExpressionProcessors.process_unary_operation(op, operand, meta, state)
 
+      # Variable reference
       {var_name, meta, nil} when is_atom(var_name) ->
-        NodeBuilder.build_variable_reference_node(var_name, meta, state)
+        ExpressionProcessors.process_variable_reference(var_name, meta, state)
 
+      # Literal values
       literal when is_atom(literal) or is_number(literal) or is_binary(literal) or is_list(literal) ->
-        NodeBuilder.build_literal_node(literal, state)
+        ExpressionProcessors.process_literal_value(literal, state)
 
+      # Handle nil (empty function body)
       nil ->
-        {%{}, [], [], %{}, state} # Empty function body
+        # Empty function body - return empty results
+        {%{}, [], [], %{}, state}
 
+      # Data structures
       {:{}, meta, elements} ->
-        NodeBuilder.build_tuple_node(elements, meta, state)
+        ExpressionProcessors.process_tuple_construction(elements, meta, state)
 
       list when is_list(list) ->
-        NodeBuilder.build_list_node(list, state)
+        ExpressionProcessors.process_list_construction(list, state)
 
       {:%{}, meta, pairs} ->
-        NodeBuilder.build_map_node(pairs, meta, state)
+        ExpressionProcessors.process_map_construction(pairs, meta, state)
 
       {:%{}, meta, [map | updates]} ->
-        NodeBuilder.build_map_update_node(map, updates, meta, state)
+        ExpressionProcessors.process_map_update(map, updates, meta, state)
 
       {:%, meta, [struct_name, fields]} ->
-        NodeBuilder.build_struct_node(struct_name, fields, meta, state)
+        ExpressionProcessors.process_struct_construction(struct_name, fields, meta, state)
 
+      # Access operation
       {{:., meta1, [Access, :get]}, meta2, [container, key]} ->
-        NodeBuilder.build_access_node(container, key, meta1, meta2, state)
+        ExpressionProcessors.process_access_operation(container, key, meta1, meta2, state)
 
+      # Attribute access
       {:@, meta, [attr]} ->
-        NodeBuilder.build_attribute_access_node(attr, meta, state)
-        
-      # --- Receive Statement (Remains here as placeholder) ---
-      {:receive, meta, clauses} ->
-        process_receive_statement(clauses, meta, state)
+        ExpressionProcessors.process_attribute_access(attr, meta, state)
 
-      # --- Fallback (NodeBuilder) ---
+      # Simple expression fallback
       _ ->
-        NodeBuilder.build_simple_expression_node(ast, state)
+        ExpressionProcessors.process_simple_expression(ast, state)
     end
   end
 
-  # Placeholder for receive, as it was not fully implemented and not moved.
-  # If this needs full processing, it could also be moved to a specialized handler.
-  defp process_receive_statement(_clauses, _meta, state), do: {%{}, [], [], %{}, state}
+  # Helper functions for building connections
 
-  # Note: process_comprehension and analyze_comprehension_clauses were removed earlier when NodeBuilder was created.
-  # process_unless_statement was moved to ConditionalHandler (and renamed handle_unless_statement there).
-  # All other process_... functions for specific AST types have been moved to their respective handlers or NodeBuilder.
+  defp build_entry_connections(entry_node_id, guard_ast, guard_nodes, body_nodes) do
+    if guard_ast do
+      # Connect entry to guard
+      guard_entry_nodes = get_entry_nodes(guard_nodes)
+      Enum.map(guard_entry_nodes, fn node_id ->
+        %CFGEdge{
+          from_node_id: entry_node_id,
+          to_node_id: node_id,
+          type: :sequential,
+          condition: nil,
+          probability: 1.0,
+          metadata: %{connection: :entry_to_guard}
+        }
+      end)
+    else
+      # Connect entry directly to body
+      body_entry_nodes = get_entry_nodes(body_nodes)
+      if body_entry_nodes == [] do
+        # Empty function body - no body nodes to connect to
+        []
+      else
+        Enum.map(body_entry_nodes, fn node_id ->
+          %CFGEdge{
+            from_node_id: entry_node_id,
+            to_node_id: node_id,
+            type: :sequential,
+            condition: nil,
+            probability: 1.0,
+            metadata: %{connection: :entry_to_body}
+          }
+        end)
+      end
+    end
+  end
+
+  defp build_guard_to_body_connections(guard_ast, guard_exits, body_nodes) do
+    if guard_ast do
+      body_entry_nodes = get_entry_nodes(body_nodes)
+      Enum.flat_map(guard_exits, fn guard_exit ->
+        Enum.map(body_entry_nodes, fn body_entry ->
+          %CFGEdge{
+            from_node_id: guard_exit,
+            to_node_id: body_entry,
+            type: :sequential,
+            condition: nil,
+            probability: 1.0,
+            metadata: %{connection: :guard_to_body}
+          }
+        end)
+      end)
+    else
+      []
+    end
+  end
+
+  defp build_exit_connections(body_exits, exit_node_id) do
+    Enum.map(body_exits, fn exit_id ->
+      %CFGEdge{
+        from_node_id: exit_id,
+        to_node_id: exit_node_id,
+        type: :sequential,
+        condition: nil,
+        probability: 1.0,
+        metadata: %{}
+      }
+    end)
+  end
+
+  defp build_direct_entry_to_exit_connections(body_exits, guard_exits, entry_node_id, exit_node_id) do
+    if body_exits == [] and guard_exits == [entry_node_id] do
+      # Empty function body with no guard, or guard that doesn't produce nodes
+      [%CFGEdge{
+        from_node_id: entry_node_id,
+        to_node_id: exit_node_id,
+        type: :sequential,
+        condition: nil,
+        probability: 1.0,
+        metadata: %{connection: :entry_to_exit_direct}
+      }]
+    else
+      []
+    end
+  end
+
+  defp get_entry_nodes(nodes) when map_size(nodes) == 0, do: []
+  defp get_entry_nodes(nodes) do
+    # Find nodes with no predecessors
+    nodes
+    |> Map.values()
+    |> Enum.filter(fn node -> length(node.predecessors) == 0 end)
+    |> Enum.map(& &1.id)
+    |> case do
+      [] -> [nodes |> Map.keys() |> List.first()]  # Fallback to first node
+      entry_nodes -> entry_nodes
+    end
+  end
 end

@@ -1,31 +1,29 @@
 defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ComplexityCalculator do
   @moduledoc """
-  Handles complexity calculations for CFGGenerator.
+  Complexity calculation functions for the CFG generator.
+  Uses research-based decision points method for cyclomatic complexity.
   """
 
-  alias ElixirScope.ASTRepository.Enhanced.{
-    ComplexityMetrics,
-    CFGGenerator.Utils
-  }
+  alias ElixirScope.ASTRepository.Enhanced.ComplexityMetrics
 
+  @doc """
+  Calculates complexity metrics using CFG-based approach.
+  """
   def calculate_complexity_metrics(nodes, edges, scopes) do
     # Count decision POINTS, not decision EDGES
     decision_points = count_decision_points(nodes)
 
     # Calculate cyclomatic complexity using decision points method
-    _cyclomatic = decision_points + 1
+    cyclomatic = decision_points + 1
 
     # Calculate other complexity metrics
     cognitive = calculate_cognitive_complexity(nodes, scopes)
-    nesting_depth = Utils.calculate_max_nesting_depth(scopes)
-    lines_of_code = Utils.estimate_lines_of_code(nodes)
+    nesting_depth = calculate_max_nesting_depth(scopes)
+    lines_of_code = estimate_lines_of_code(nodes)
 
     # Create ComplexityMetrics directly using our CFG-based calculations
     # This bypasses the AST-based complexity calculation in ComplexityMetrics.new/2
     now = DateTime.utc_now()
-
-    # Use our decision points method for cyclomatic complexity
-    cyclomatic_complexity = decision_points + 1
 
     # Create simple halstead metrics (since calculate_halstead_metrics is private)
     halstead = %{
@@ -39,13 +37,13 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ComplexityCalculator d
       bugs: 0.0033333333333333335
     }
 
-    maintainability_index = 100.0 - (cyclomatic_complexity * 2.0) - (cognitive * 1.5)
+    maintainability_index = 100.0 - (cyclomatic * 2.0) - (cognitive * 1.5)
 
-    overall_score = cyclomatic_complexity + cognitive + (nesting_depth * 0.5)
+    overall_score = cyclomatic + cognitive + (nesting_depth * 0.5)
 
     %ComplexityMetrics{
       score: overall_score,
-      cyclomatic: cyclomatic_complexity,
+      cyclomatic: cyclomatic,
       cognitive: trunc(cognitive),
       halstead: halstead,
       maintainability_index: max(maintainability_index, 0.0),
@@ -63,7 +61,11 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ComplexityCalculator d
     }
   end
 
-  defp count_decision_points(nodes) do
+  @doc """
+  Counts decision points in the CFG nodes.
+  Uses research-based approach counting decision points, not edges.
+  """
+  def count_decision_points(nodes) do
     nodes
     |> Map.values()
     |> Enum.reduce(0, fn node, acc ->
@@ -115,7 +117,10 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ComplexityCalculator d
     end)
   end
 
-  defp calculate_cognitive_complexity(nodes, scopes) do
+  @doc """
+  Calculates cognitive complexity considering nesting.
+  """
+  def calculate_cognitive_complexity(nodes, scopes) do
     result = nodes
     |> Map.values()
     |> Enum.reduce(0, fn node, acc ->
@@ -129,7 +134,7 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ComplexityCalculator d
       end
 
       # Add nesting penalty based on scope depth
-      nesting_level = Utils.get_scope_nesting_level(node.scope_id, scopes)
+      nesting_level = get_scope_nesting_level(node.scope_id, scopes)
       nesting_penalty = nesting_level * 0.5
 
       node_contribution = base_increment + nesting_penalty
@@ -149,4 +154,46 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ComplexityCalculator d
         Float.round(result, 1)
     end
   end
-end 
+
+  @doc """
+  Calculates maximum nesting depth from scopes.
+  """
+  def calculate_max_nesting_depth(scopes) do
+    scopes
+    |> Map.values()
+    |> Enum.map(&calculate_scope_depth(&1, scopes, 0))
+    |> Enum.max(fn -> 1 end)
+  end
+
+  @doc """
+  Estimates lines of code from CFG nodes.
+  """
+  def estimate_lines_of_code(nodes) do
+    nodes
+    |> Map.values()
+    |> Enum.map(& &1.line)
+    |> Enum.max(fn -> 1 end)
+  end
+
+  # Private helper functions
+
+  defp calculate_scope_depth(scope, all_scopes, current_depth) do
+    case scope.parent_scope do
+      nil -> current_depth
+      parent_id ->
+        parent_scope = Map.get(all_scopes, parent_id)
+        if parent_scope do
+          calculate_scope_depth(parent_scope, all_scopes, current_depth + 1)
+        else
+          current_depth
+        end
+    end
+  end
+
+  defp get_scope_nesting_level(scope_id, scopes) do
+    case Map.get(scopes, scope_id) do
+      nil -> 0
+      scope -> calculate_scope_depth(scope, scopes, 0)
+    end
+  end
+end

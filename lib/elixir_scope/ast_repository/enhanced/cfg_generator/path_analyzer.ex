@@ -1,25 +1,16 @@
 defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.PathAnalyzer do
   @moduledoc """
-  Handles path analysis for CFGGenerator.
+  Path analysis functions for the CFG generator.
+  Analyzes control flow paths, loops, and branch coverage.
   """
 
   alias ElixirScope.ASTRepository.Enhanced.{
-    PathAnalysis,
-    LoopAnalysis,
-    BranchCoverage
+    PathAnalysis, LoopAnalysis, BranchCoverage
   }
 
-  def create_empty_path_analysis do
-    %PathAnalysis{
-      all_paths: [],
-      critical_paths: [],
-      unreachable_nodes: [],
-      loop_analysis: %LoopAnalysis{loops: [], loop_nesting_depth: 0, infinite_loop_risk: :low, loop_complexity: 0},
-      branch_coverage: %BranchCoverage{total_branches: 0, covered_branches: 0, uncovered_branches: [], coverage_percentage: 0.0, critical_uncovered: []},
-      path_conditions: %{}
-    }
-  end
-
+  @doc """
+  Analyzes all paths in the CFG and generates comprehensive path analysis.
+  """
   def analyze_paths(nodes, edges, entry_nodes, exits, _opts) do
     # Generate all possible paths from entry to exit nodes
     all_paths = generate_all_paths(nodes, edges, entry_nodes, exits)
@@ -50,7 +41,11 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.PathAnalyzer do
     }
   end
 
-  defp generate_all_paths(_nodes, edges, entry_nodes, exits) do
+  @doc """
+  Generates all possible paths from entry nodes to exit nodes.
+  Limited to prevent exponential explosion.
+  """
+  def generate_all_paths(_nodes, edges, entry_nodes, exits) do
     # Generate paths from each entry node to each exit node
     Enum.flat_map(entry_nodes, fn entry ->
       Enum.flat_map(exits, fn exit ->
@@ -60,6 +55,91 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.PathAnalyzer do
     |> Enum.uniq()
     |> Enum.take(100)  # Limit to prevent explosion
   end
+
+  @doc """
+  Identifies critical paths (longest or most complex paths).
+  """
+  def identify_critical_paths(all_paths, _nodes) do
+    # Critical paths are the longest paths or paths through complex nodes
+    all_paths
+    |> Enum.sort_by(&length/1, :desc)
+    |> Enum.take(3)  # Top 3 longest paths
+  end
+
+  @doc """
+  Finds all reachable nodes from entry points.
+  """
+  def find_reachable_nodes(_nodes, edges, entry_nodes) do
+    # Use DFS to find all reachable nodes
+    Enum.reduce(entry_nodes, MapSet.new(), fn entry, acc ->
+      dfs_reachable(entry, edges, acc)
+    end)
+    |> MapSet.to_list()
+  end
+
+  @doc """
+  Analyzes loops in the CFG.
+  """
+  def analyze_loops(nodes, edges) do
+    # Simple loop detection - look for back edges
+    loops = detect_back_edges(edges)
+
+    %LoopAnalysis{
+      loops: loops,
+      loop_nesting_depth: calculate_loop_nesting_depth(loops),
+      infinite_loop_risk: assess_infinite_loop_risk(loops, nodes),
+      loop_complexity: length(loops)
+    }
+  end
+
+  @doc """
+  Analyzes branch coverage in the CFG.
+  """
+  def analyze_branch_coverage(nodes, _edges) do
+    # Count conditional nodes and their branches
+    conditional_nodes = Map.values(nodes)
+    |> Enum.filter(fn node ->
+      node.type in [:conditional, :case, :cond_entry, :guard_check]
+    end)
+
+    total_branches = Enum.reduce(conditional_nodes, 0, fn node, acc ->
+      case node.type do
+        :conditional -> acc + 2  # if/else
+        :case ->
+          clause_count = Map.get(node.metadata, :clause_count, 2)
+          acc + clause_count
+        :cond_entry ->
+          clause_count = Map.get(node.metadata, :clause_count, 2)
+          acc + clause_count
+        _ -> acc + 1
+      end
+    end)
+
+    # For now, assume all branches are covered (would need more sophisticated analysis)
+    covered_branches = total_branches
+
+    %BranchCoverage{
+      total_branches: total_branches,
+      covered_branches: covered_branches,
+      uncovered_branches: [],
+      coverage_percentage: (if total_branches > 0, do: 100.0, else: 0.0),
+      critical_uncovered: []
+    }
+  end
+
+  @doc """
+  Generates path conditions for each identified path.
+  """
+  def generate_path_conditions(all_paths, nodes) do
+    # Generate conditions for each path
+    Enum.reduce(all_paths, %{}, fn path, acc ->
+      path_id = "path_#{:erlang.phash2(path)}"
+      conditions = extract_conditions_from_path(path, nodes)
+      Map.put(acc, path_id, conditions)
+    end)
+  end
+
+  # Private helper functions
 
   defp find_paths_between(start, target, edges, visited) do
     if start == target do
@@ -84,21 +164,6 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.PathAnalyzer do
     end
   end
 
-  defp identify_critical_paths(all_paths, _nodes) do
-    # Critical paths are the longest paths or paths through complex nodes
-    all_paths
-    |> Enum.sort_by(&length/1, :desc)
-    |> Enum.take(3)  # Top 3 longest paths
-  end
-
-  defp find_reachable_nodes(_nodes, edges, entry_nodes) do
-    # Use DFS to find all reachable nodes
-    Enum.reduce(entry_nodes, MapSet.new(), fn entry, acc ->
-      dfs_reachable(entry, edges, acc)
-    end)
-    |> MapSet.to_list()
-  end
-
   defp dfs_reachable(node, edges, visited) do
     if MapSet.member?(visited, node) do
       visited
@@ -112,18 +177,6 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.PathAnalyzer do
         dfs_reachable(edge.to_node_id, edges, acc)
       end)
     end
-  end
-
-  defp analyze_loops(nodes, edges) do
-    # Simple loop detection - look for back edges
-    loops = detect_back_edges(edges)
-
-    %LoopAnalysis{
-      loops: loops,
-      loop_nesting_depth: calculate_loop_nesting_depth(loops),
-      infinite_loop_risk: assess_infinite_loop_risk(loops, nodes),
-      loop_complexity: length(loops)
-    }
   end
 
   defp detect_back_edges(edges) do
@@ -177,47 +230,6 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.PathAnalyzer do
     end
   end
 
-  defp analyze_branch_coverage(nodes, _edges) do
-    # Count conditional nodes and their branches
-    conditional_nodes = Map.values(nodes)
-    |> Enum.filter(fn node ->
-      node.type in [:conditional, :case, :cond_entry, :guard_check]
-    end)
-
-    total_branches = Enum.reduce(conditional_nodes, 0, fn node, acc ->
-      case node.type do
-        :conditional -> acc + 2  # if/else
-        :case ->
-          clause_count = Map.get(node.metadata, :clause_count, 2)
-          acc + clause_count
-        :cond_entry ->
-          clause_count = Map.get(node.metadata, :clause_count, 2)
-          acc + clause_count
-        _ -> acc + 1
-      end
-    end)
-
-    # For now, assume all branches are covered (would need more sophisticated analysis)
-    covered_branches = total_branches
-
-    %BranchCoverage{
-      total_branches: total_branches,
-      covered_branches: covered_branches,
-      uncovered_branches: [],
-      coverage_percentage: (if total_branches > 0, do: 100.0, else: 0.0),
-      critical_uncovered: []
-    }
-  end
-
-  defp generate_path_conditions(all_paths, nodes) do
-    # Generate conditions for each path
-    Enum.reduce(all_paths, %{}, fn path, acc ->
-      path_id = "path_#{:erlang.phash2(path)}"
-      conditions = extract_conditions_from_path(path, nodes)
-      Map.put(acc, path_id, conditions)
-    end)
-  end
-
   defp extract_conditions_from_path(path, nodes) do
     # Extract conditions from conditional nodes in the path
     Enum.flat_map(path, fn node_id ->
@@ -230,4 +242,4 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.PathAnalyzer do
       end
     end)
   end
-end 
+end
