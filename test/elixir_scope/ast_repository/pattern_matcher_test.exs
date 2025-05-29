@@ -72,7 +72,7 @@ defmodule ElixirScope.ASTRepository.PatternMatcherTest do
         confidence_threshold: 0.8
       }
 
-      assert {:error, :repository_not_found} =
+      assert {:error, :missing_pattern_type} =
         PatternMatcher.match_ast_pattern(:non_existent_repo, pattern_spec)
     end
 
