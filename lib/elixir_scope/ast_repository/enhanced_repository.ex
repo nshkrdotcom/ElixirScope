@@ -185,56 +185,6 @@ defmodule ElixirScope.ASTRepository.EnhancedRepository do
           error -> error
         end
       
-      {:error, :not_found} ->
-        # Function not found as separate entry, try to get from module data
-        case get_enhanced_module(module_name) do
-          {:ok, module_data} ->
-            # Check if function exists in module functions
-            function_key = {function_name, arity}
-            case Map.get(module_data.functions, function_key) do
-              nil ->
-                {:error, :not_found}
-              
-              _function_metadata ->
-                # Extract function AST from module AST
-                case extract_function_ast(module_data.ast, function_name, arity) do
-                  {:ok, function_ast} ->
-                    # Generate CPG for the function
-                    case CPGBuilder.build_cpg(function_ast) do
-                      {:ok, cpg} ->
-                        # Store as enhanced function data for future use
-                        enhanced_function_data = %EnhancedFunctionData{
-                          module_name: module_name,
-                          function_name: function_name,
-                          arity: arity,
-                          ast: function_ast,
-                          cfg_data: nil,
-                          dfg_data: nil,
-                          cpg_data: cpg,
-                          complexity_metrics: calculate_function_complexity(function_ast, nil, nil),
-                          performance_analysis: analyze_function_performance(function_ast, nil, nil),
-                          security_analysis: analyze_function_security(function_ast, cpg),
-                          optimization_hints: generate_function_optimization_hints(function_ast, nil, nil),
-                          created_at: DateTime.utc_now(),
-                          updated_at: DateTime.utc_now()
-                        }
-                        
-                        # Cache the enhanced function data
-                        :ets.insert(@table_name, {{:function, module_name, function_name, arity}, enhanced_function_data})
-                        
-                        {:ok, cpg}
-                      
-                      error -> error
-                    end
-                  
-                  {:error, :not_found} ->
-                    {:error, :not_found}
-                end
-            end
-          
-          error -> error
-        end
-      
       error -> error
     end
   end
@@ -283,9 +233,6 @@ defmodule ElixirScope.ASTRepository.EnhancedRepository do
     start_time = System.monotonic_time(:microsecond)
     
     try do
-      # Invalidate any cached function entries for this module
-      invalidate_module_function_cache(module_name)
-      
       # Create enhanced module data
       enhanced_data = %EnhancedModuleData{
         module_name: module_name,
@@ -756,77 +703,5 @@ defmodule ElixirScope.ASTRepository.EnhancedRepository do
   defp perform_pattern_matching(_params) do
     # Simplified pattern matching
     {:ok, %{matches: []}}
-  end
-  
-  # Helper function to invalidate cached function entries for a module
-  defp invalidate_module_function_cache(module_name) do
-    # Find all function entries for this module and delete them
-    pattern = {{:function, module_name, :_, :_}, :_}
-    :ets.match_delete(@table_name, pattern)
-  end
-  
-  # Helper function to extract individual function AST from module AST
-  defp extract_function_ast(module_ast, function_name, arity) do
-    case module_ast do
-      {:defmodule, _, [_module_name, [do: body]]} ->
-        extract_function_from_module_body(body, function_name, arity)
-      _ ->
-        {:error, :not_found}
-    end
-  end
-  
-  defp extract_function_from_module_body({:__block__, _, statements}, function_name, arity) do
-    Enum.find_value(statements, {:error, :not_found}, fn statement ->
-      case extract_function_from_statement_if_match(statement, function_name, arity) do
-        {:ok, function_ast} -> {:ok, function_ast}
-        :no_match -> nil
-      end
-    end)
-  end
-  
-  defp extract_function_from_module_body(statement, function_name, arity) do
-    extract_function_from_statement_if_match(statement, function_name, arity)
-  end
-  
-  defp extract_function_from_statement_if_match({:def, meta, [{name, _, args}, body]}, function_name, arity) 
-    when is_atom(name) and is_list(args) do
-    if name == function_name and length(args) == arity do
-      {:ok, {:def, meta, [{name, [], args}, body]}}
-    else
-      :no_match
-    end
-  end
-  
-  defp extract_function_from_statement_if_match({:defp, meta, [{name, _, args}, body]}, function_name, arity) 
-    when is_atom(name) and is_list(args) do
-    if name == function_name and length(args) == arity do
-      {:ok, {:defp, meta, [{name, [], args}, body]}}
-    else
-      :no_match
-    end
-  end
-  
-  # Handle function definitions with guards
-  defp extract_function_from_statement_if_match({:def, meta, [{:when, _, [{name, _, args} | _guards]}, body]}, function_name, arity) 
-    when is_atom(name) and is_list(args) do
-    if name == function_name and length(args) == arity do
-      {:ok, {:def, meta, [{:when, [], [{name, [], args}]}, body]}}
-    else
-      :no_match
-    end
-  end
-  
-  defp extract_function_from_statement_if_match({:defp, meta, [{:when, _, [{name, _, args} | _guards]}, body]}, function_name, arity) 
-    when is_atom(name) and is_list(args) do
-    if name == function_name and length(args) == arity do
-      {:ok, {:defp, meta, [{:when, [], [{name, [], args}]}, body]}}
-    else
-      :no_match
-    end
-  end
-  
-  # Handle anything else (no match)
-  defp extract_function_from_statement_if_match(_, _, _) do
-    :no_match
   end
 end 
