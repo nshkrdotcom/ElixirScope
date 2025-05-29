@@ -32,6 +32,25 @@ defmodule ElixirScope.ASTRepository.MemoryManager.Monitor do
     {:ok, %{}}
   end
 
+  def handle_call(:collect_memory_stats, _from, state) do
+    case collect_memory_stats() do
+      {:ok, stats} -> {:reply, {:ok, stats}, state}
+      error -> {:reply, error, state}
+    end
+  end
+
+  def handle_call(_request, _from, state) do
+    {:reply, {:error, :unknown_call}, state}
+  end
+
+  def handle_cast(_msg, state) do
+    {:noreply, state}
+  end
+
+  def handle_info(_msg, state) do
+    {:noreply, state}
+  end
+
   @doc """
   Collects comprehensive memory statistics.
   """

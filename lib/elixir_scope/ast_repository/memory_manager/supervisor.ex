@@ -95,33 +95,29 @@ defmodule ElixirScope.ASTRepository.MemoryManager.Supervisor do
 
   defp build_children(monitoring_enabled, cache_enabled, opts) do
     # Build children in dependency order (dependencies first)
-    base_children = []
+    children = []
 
-    # Add Monitor if monitoring is enabled
-    children_with_monitor = if monitoring_enabled do
-      [
-        {ElixirScope.ASTRepository.MemoryManager.Monitor, []} | base_children
-      ]
+    # Add Cache Manager first if caching is enabled (MemoryManager depends on it)
+    children = if cache_enabled do
+      [{ElixirScope.ASTRepository.MemoryManager.CacheManager, []} | children]
     else
-      base_children
+      children
     end
 
-    # Add Cache Manager if caching is enabled
-    children_with_cache = if cache_enabled do
-      [
-        {ElixirScope.ASTRepository.MemoryManager.CacheManager, []} | children_with_monitor
-      ]
+    # Add Monitor if monitoring is enabled
+    children = if monitoring_enabled do
+      [{ElixirScope.ASTRepository.MemoryManager.Monitor, []} | children]
     else
-      children_with_monitor
+      children
     end
 
     # Add main Memory Manager last (depends on others)
-    children_with_main = [
+    children = [
       {ElixirScope.ASTRepository.MemoryManager,
-       [monitoring_enabled: monitoring_enabled] ++ opts} | children_with_cache
+      [monitoring_enabled: monitoring_enabled] ++ opts} | children
     ]
 
-    # Return in startup order (dependencies first)
-    Enum.reverse(children_with_main)
+    # Return in correct startup order (dependencies first)
+    Enum.reverse(children)
   end
 end
