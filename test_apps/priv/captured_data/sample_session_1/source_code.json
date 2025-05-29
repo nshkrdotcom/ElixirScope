@@ -1,0 +1,3 @@
+{
+  "MyModule": "defmodule MyModule do\n  @moduledoc \"\"\"\n  Sample module for debugging demonstration\n  \"\"\"\n\n  def process(count, name) do\n    # Process the input\n    result = \"#{name}: #{count}\"\n    {:ok, result}\n  end\nend"
+} 

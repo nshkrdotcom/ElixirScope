@@ -1,0 +1,22 @@
+{
+  "MyModule:process:1": {
+    "module": "MyModule",
+    "start_line": 6,
+    "end_line": 10
+  },
+  "MyModule:process:2": {
+    "module": "MyModule",
+    "start_line": 7,
+    "end_line": 7
+  },
+  "MyModule:process:3": {
+    "module": "MyModule",
+    "start_line": 8,
+    "end_line": 8
+  },
+  "MyModule:process:4": {
+    "module": "MyModule",
+    "start_line": 9,
+    "end_line": 9
+  }
+} 

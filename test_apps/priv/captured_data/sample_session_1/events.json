@@ -1,0 +1,54 @@
+[
+  {
+    "id": "evt_1",
+    "timestamp_ns": 1678886400000000000,
+    "type": "FUNCTION_ENTRY",
+    "ast_node_id": "MyModule:process:1",
+    "data": {
+      "module": "MyModule",
+      "function": "process",
+      "arity": 2,
+      "args": [
+        {"type": "integer", "value": 42},
+        {"type": "string", "value": "test"}
+      ]
+    }
+  },
+  {
+    "id": "evt_2",
+    "timestamp_ns": 1678886400100000000,
+    "type": "VAR_SNAPSHOT",
+    "ast_node_id": "MyModule:process:2",
+    "data": {
+      "module": "MyModule",
+      "line": 5,
+      "variables": {
+        "count": {"type": "integer", "value": 42},
+        "name": {"type": "string", "value": "test"}
+      }
+    }
+  },
+  {
+    "id": "evt_3",
+    "timestamp_ns": 1678886400200000000,
+    "type": "LINE_EXECUTION",
+    "ast_node_id": "MyModule:process:3",
+    "data": {
+      "module": "MyModule",
+      "line": 6
+    }
+  },
+  {
+    "id": "evt_4",
+    "timestamp_ns": 1678886400300000000,
+    "type": "FUNCTION_EXIT",
+    "ast_node_id": "MyModule:process:4",
+    "data": {
+      "module": "MyModule",
+      "function": "process",
+      "arity": 2,
+      "return_value": {"type": "ok", "value": "success"},
+      "duration_ns": 300000000
+    }
+  }
+] 

@@ -97,7 +97,7 @@ defmodule ElixirScope.Capture.EnhancedInstrumentation do
     }
 
     # Register event hooks with InstrumentationRuntime
-    # register_event_hooks()
+    register_event_hooks()
 
     Logger.info("EnhancedInstrumentation started with AST correlation: #{state.ast_correlation_enabled}")
     {:ok, state}

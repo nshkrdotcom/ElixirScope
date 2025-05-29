@@ -1,0 +1,10 @@
+{
+  "id": "sample_session_1",
+  "name": "Sample Debug Session",
+  "description": "A simple function call with variable tracking",
+  "timestamp": "2024-05-28T10:00:00Z",
+  "event_count": 4,
+  "trigger": "Function: MyModule.process/2",
+  "duration": 300000000,
+  "status": "completed"
+} 
