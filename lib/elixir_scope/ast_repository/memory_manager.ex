@@ -30,6 +30,54 @@ defmodule ElixirScope.ASTRepository.MemoryManager do
 
       # Cleanup unused data
       :ok = MemoryManager.cleanup_unused_data(max_age: 3600)
+
+  ## Integration with Your Application
+
+  ### 1. Add to Supervision Tree
+
+  In your main application supervisor:
+
+  ```elixir
+  # In your application.ex or main supervisor
+  def start(_type, _args) do
+    children = [
+      # ... your other children
+      {ElixirScope.ASTRepository.MemoryManager.Supervisor, [
+        monitoring_enabled: true,
+        cache_enabled: true
+      ]}
+    ]
+
+    opts = [strategy: :one_for_one, name: YourApp.Supervisor]
+    Supervisor.start_link(children, opts)
+  end
+  ```
+
+  ### 2. Configuration (optional)
+
+  Add to your config files:
+
+  ```elixir
+  # config/config.exs
+  config :elixir_scope, :memory_manager,
+    monitoring_enabled: true,
+    memory_check_interval: 30_000,
+    cleanup_interval: 300_000,
+    max_cache_entries: 1000
+
+  # config/prod.exs
+  config :elixir_scope, :memory_manager,
+    max_cache_entries: 5000,
+    memory_pressure_level_1: 85
+  ```
+
+  ### Performance Issues
+
+  For performance optimization:
+
+  1. **Adjust cache sizes** based on your memory constraints
+  2. **Tune memory pressure thresholds** for your environment
+  3. **Monitor memory usage** with the built-in monitoring tools
   """
 
   use GenServer

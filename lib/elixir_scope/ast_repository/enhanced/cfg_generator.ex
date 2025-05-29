@@ -12,6 +12,61 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator do
   Performance targets:
   - CFG generation: <100ms for functions with <100 AST nodes
   - Memory efficient: <1MB per function CFG
+
+  ## Usage
+
+  The public API remains unchanged. Use the main module as before:
+
+  ```elixir
+  # Same API as before
+  {:ok, cfg} = CFGGenerator.generate_cfg(function_ast, opts)
+  ```
+
+  ## Dependencies Between Modules
+
+  ```
+  CFGGenerator (main)
+  ├── Validators
+  ├── StateManager
+  ├── ASTProcessor
+  │   ├── ControlFlowProcessors
+  │   │   ├── StateManager
+  │   │   ├── ASTUtilities
+  │   │   └── ASTProcessor (circular, carefully managed)
+  │   ├── ExpressionProcessors
+  │   │   ├── StateManager
+  │   │   ├── ASTUtilities
+  │   │   └── ASTProcessor (circular, carefully managed)
+  │   └── ASTUtilities
+  ├── ComplexityCalculator
+  └── PathAnalyzer
+  ```
+
+  ## Testing Strategy
+
+  Each module can now be tested independently:
+
+  ```elixir
+  # Test specific processors
+  defmodule ControlFlowProcessorsTest do
+    use ExUnit.Case
+    alias CFGGenerator.ControlFlowProcessors
+
+    test "processes case statement correctly" do
+      # Test specific to case processing
+    end
+  end
+
+  # Test utilities
+  defmodule ASTUtilitiesTest do
+    use ExUnit.Case
+    alias CFGGenerator.ASTUtilities
+
+    test "extracts pattern variables" do
+      # Test specific to pattern extraction
+    end
+  end
+  ```
   """
 
   alias ElixirScope.ASTRepository.Enhanced.{

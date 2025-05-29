@@ -11,6 +11,101 @@ defmodule ElixirScope.Capture.InstrumentationRuntime do
   - No crashes if ElixirScope is not running
   - Efficient correlation ID management
   - Support for nested function calls
+
+  ## Module Breakdown
+
+  ### InstrumentationRuntime (Main Module)
+  ```elixir
+  # Acts as a facade, delegating to specialized modules
+  defdelegate report_function_entry(module, function, args), to: CoreReporting
+  defdelegate report_phoenix_request_start(correlation_id, method, path, params, remote_ip), to: PhoenixReporting
+  ```
+
+  **Purpose**: Maintains the public API and delegates to appropriate specialized modules.
+
+  ### Context Module
+  ```elixir
+  alias ElixirScope.Capture.InstrumentationRuntime.Context
+
+  Context.initialize_context()
+  Context.enabled?()
+  Context.current_correlation_id()
+  ```
+
+  **Purpose**: Manages process-level instrumentation state, correlation IDs, and call stacks.
+
+  ### CoreReporting Module
+  ```elixir
+  alias ElixirScope.Capture.InstrumentationRuntime.CoreReporting
+
+  CoreReporting.report_function_entry(MyModule, :my_function, [arg1, arg2])
+  CoreReporting.report_process_spawn(child_pid)
+  ```
+
+  **Purpose**: Handles basic instrumentation events like function calls, process spawns, and errors.
+
+  ### ASTReporting Module
+  ```elixir
+  alias ElixirScope.Capture.InstrumentationRuntime.ASTReporting
+
+  ASTReporting.report_ast_variable_snapshot(correlation_id, variables, line, ast_node_id)
+  ASTReporting.report_ast_expression_value(correlation_id, expression, value, line, ast_node_id)
+  ```
+
+  **Purpose**: Handles AST transformation-specific events with enhanced correlation features.
+
+  ### PhoenixReporting Module
+  ```elixir
+  alias ElixirScope.Capture.InstrumentationRuntime.PhoenixReporting
+
+  PhoenixReporting.report_phoenix_request_start(correlation_id, method, path, params, remote_ip)
+  PhoenixReporting.report_liveview_handle_event_start(correlation_id, event, params, socket_assigns)
+  ```
+
+  **Purpose**: Handles Phoenix framework events including HTTP requests, LiveView, and channels.
+
+  ### For New Code
+  You can choose to use either approach:
+
+  ```elixir
+  # Option 1: Use the main module (recommended for public API)
+  alias ElixirScope.Capture.InstrumentationRuntime, as: Runtime
+  Runtime.report_function_entry(MyModule, :my_func, [])
+
+  # Option 2: Use specific modules directly (for internal/specialized use)
+  alias ElixirScope.Capture.InstrumentationRuntime.CoreReporting
+  CoreReporting.report_function_entry(MyModule, :my_func, [])
+  ```
+
+  ## Testing Strategy
+
+  ### Module-Level Testing
+  Each module can now be tested independently:
+
+  ```elixir
+  defmodule InstrumentationRuntime.CoreReportingTest do
+    use ExUnit.Case
+    alias ElixirScope.Capture.InstrumentationRuntime.CoreReporting
+
+    test "reports function entry when enabled" do
+      # Test only CoreReporting logic without Phoenix/Ecto dependencies
+    end
+  end
+  ```
+
+  ### Integration Testing
+  The main module tests ensure all delegations work correctly:
+
+  ```elixir
+  defmodule InstrumentationRuntimeTest do
+    use ExUnit.Case
+    alias ElixirScope.Capture.InstrumentationRuntime
+
+    test "delegates function entry to CoreReporting" do
+      # Test that the facade properly delegates to sub-modules
+    end
+  end
+  ```
   """
 
   alias ElixirScope.Capture.InstrumentationRuntime.{
