@@ -17,6 +17,8 @@ defmodule ElixirScope.ASTRepository.QueryBuilder.Supervisor do
       {ElixirScope.ASTRepository.QueryBuilder, []}
     ]
 
-    Supervisor.init(children, strategy: :one_for_one)
+    # Use rest_for_one strategy so if QueryBuilder crashes,
+    # Cache stays running but QueryBuilder will restart
+    Supervisor.init(children, strategy: :rest_for_one)
   end
 end

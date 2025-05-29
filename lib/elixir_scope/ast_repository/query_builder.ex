@@ -1,29 +1,29 @@
 defmodule ElixirScope.ASTRepository.QueryBuilder do
   @moduledoc """
   Advanced query builder for the Enhanced AST Repository.
-  
+
   Provides powerful querying capabilities with:
   - Complex filters for complexity, patterns, dependencies
   - Query optimization using available indexes
   - Result caching and performance monitoring
   - Support for semantic, structural, performance, and security queries
-  
+
   ## Query Types
-  
+
   - **Semantic queries**: Find functions similar to a given one
   - **Structural queries**: Find specific AST patterns (e.g., GenServer implementations)
   - **Performance queries**: Find functions with specific complexity characteristics
   - **Security queries**: Identify potential security vulnerabilities
   - **Dependency queries**: Find modules using specific functions or patterns
-  
+
   ## Performance Targets
-  
+
   - Simple queries: <50ms
   - Complex queries: <200ms
   - Memory usage: <50MB for query execution
-  
+
   ## Examples
-  
+
       # Complex function query
       {:ok, functions} = QueryBuilder.execute_query(repo, %{
         select: [:module, :function, :complexity, :performance_profile],
@@ -36,7 +36,7 @@ defmodule ElixirScope.ASTRepository.QueryBuilder do
         order_by: {:desc, :complexity},
         limit: 20
       })
-      
+
       # Semantic similarity query
       {:ok, similar} = QueryBuilder.execute_query(repo, %{
         select: [:module, :function, :similarity_score],
@@ -48,10 +48,10 @@ defmodule ElixirScope.ASTRepository.QueryBuilder do
         order_by: {:desc, :similarity_score}
       })
   """
-  
+
   use GenServer
   require Logger
-  
+
   alias ElixirScope.ASTRepository.QueryBuilder.{
     Types,
     Normalizer,
@@ -60,7 +60,7 @@ defmodule ElixirScope.ASTRepository.QueryBuilder do
     Executor,
     Cache
   }
-  
+
   defstruct [
     :cache_pid,
     :opts
@@ -73,11 +73,11 @@ defmodule ElixirScope.ASTRepository.QueryBuilder do
   end
 
   def init(opts) do
-    # Start the cache process
-    {:ok, cache_pid} = Cache.start_link()
+    # Ensure the cache is available - either already started or start it now
+    ensure_cache_started()
 
     state = %__MODULE__{
-      cache_pid: cache_pid,
+      cache_pid: nil,  # We'll use the named process
       opts: opts
     }
 
@@ -118,8 +118,12 @@ defmodule ElixirScope.ASTRepository.QueryBuilder do
 
   def handle_call(:get_cache_stats, _from, state) do
     case Cache.get_stats() do
-      {:ok, stats} -> {:reply, {:ok, stats}, state}
-      error -> {:reply, error, state}
+      {:ok, %{cache: cache_stats, performance: _perf_stats}} ->
+        {:reply, {:ok, cache_stats}, state}
+      {:ok, stats} ->
+        {:reply, {:ok, stats}, state}
+      error ->
+        {:reply, error, state}
     end
   end
 
@@ -134,13 +138,13 @@ defmodule ElixirScope.ASTRepository.QueryBuilder do
 
   @doc """
   Builds a query structure from keyword options.
-  
+
   ## Parameters
-  
+
   - `query_spec` - Map or keyword list with query specifications
-  
+
   ## Examples
-  
+
       iex> QueryBuilder.build_query(%{
       ...>   select: [:module, :function, :complexity],
       ...>   from: :functions,
@@ -157,14 +161,14 @@ defmodule ElixirScope.ASTRepository.QueryBuilder do
 
   @doc """
   Executes a query against the Enhanced Repository with optimization.
-  
+
   ## Parameters
-  
+
   - `repo` - The Enhanced Repository process
   - `query_spec` - Query specification map or QueryBuilder struct
-  
+
   ## Returns
-  
+
   - `{:ok, query_result()}` - Successful execution with results and metadata
   - `{:error, term()}` - Error during execution
   """
@@ -212,6 +216,21 @@ defmodule ElixirScope.ASTRepository.QueryBuilder do
   end
 
   # Private Implementation
+
+  defp ensure_cache_started() do
+    case Process.whereis(Cache) do
+      nil ->
+        # Cache not started, try to start it
+        case Cache.start_link() do
+          {:ok, _pid} -> :ok
+          {:error, {:already_started, _pid}} -> :ok
+          error -> error
+        end
+      _pid ->
+        # Cache already running
+        :ok
+    end
+  end
 
   defp execute_query_internal(repo, query_spec) do
     with {:ok, query} <- Normalizer.normalize_query(query_spec),
