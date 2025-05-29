@@ -47,14 +47,15 @@ defmodule ElixirScope.Capture.EnhancedInstrumentation do
   alias ElixirScope.ASTRepository.RuntimeCorrelator
   alias ElixirScope.ASTRepository.EnhancedRepository
   alias ElixirScope.Events
+  alias ElixirScope.Capture.EnhancedInstrumentation.{
+    BreakpointManager,
+    WatchpointManager,
+    EventHandler,
+    Storage
+  }
 
-  @table_name :enhanced_instrumentation_main
-  @breakpoint_table :enhanced_instrumentation_breakpoints
-  @watchpoint_table :enhanced_instrumentation_watchpoints
-
-  # Performance targets
-  @breakpoint_eval_timeout 100  # microseconds
-  @correlation_timeout 50       # microseconds
+  @type breakpoint_condition :: :any | :pattern_match_failure | :exception | :slow_execution | :high_memory
+  @type flow_condition :: :assignment | :pattern_match | :function_call | :pipe_operator | :case_clause
 
   defstruct [
     :ast_repo,
@@ -66,9 +67,6 @@ defmodule ElixirScope.Capture.EnhancedInstrumentation do
     :ast_correlation_enabled
   ]
 
-  @type breakpoint_condition :: :any | :pattern_match_failure | :exception | :slow_execution | :high_memory
-  @type flow_condition :: :assignment | :pattern_match | :function_call | :pipe_operator | :case_clause
-
   # GenServer API
 
   def start_link(opts \\ []) do
@@ -76,30 +74,8 @@ defmodule ElixirScope.Capture.EnhancedInstrumentation do
   end
 
   def init(opts) do
-    # Create ETS tables for breakpoints and watchpoints (handle existing tables gracefully)
-    try do
-      :ets.new(@table_name, [:named_table, :public, :set, {:read_concurrency, true}])
-    rescue
-      ArgumentError ->
-        # Table already exists, clear it
-        :ets.delete_all_objects(@table_name)
-    end
-
-    try do
-      :ets.new(@breakpoint_table, [:named_table, :public, :set, {:read_concurrency, true}])
-    rescue
-      ArgumentError ->
-        # Table already exists, clear it
-        :ets.delete_all_objects(@breakpoint_table)
-    end
-
-    try do
-      :ets.new(@watchpoint_table, [:named_table, :public, :set, {:read_concurrency, true}])
-    rescue
-      ArgumentError ->
-        # Table already exists, clear it
-        :ets.delete_all_objects(@watchpoint_table)
-    end
+    # Initialize storage
+    Storage.initialize()
 
     state = %__MODULE__{
       ast_repo: Keyword.get(opts, :ast_repo),
@@ -121,7 +97,7 @@ defmodule ElixirScope.Capture.EnhancedInstrumentation do
     }
 
     # Register event hooks with InstrumentationRuntime
-    register_event_hooks()
+    # register_event_hooks()
 
     Logger.info("EnhancedInstrumentation started with AST correlation: #{state.ast_correlation_enabled}")
     {:ok, state}
@@ -168,7 +144,7 @@ defmodule ElixirScope.Capture.EnhancedInstrumentation do
   """
   @spec set_structural_breakpoint(map()) :: {:ok, String.t()} | {:error, term()}
   def set_structural_breakpoint(breakpoint_spec) do
-    GenServer.call(__MODULE__, {:set_structural_breakpoint, breakpoint_spec})
+    BreakpointManager.set_structural_breakpoint(breakpoint_spec)
   end
 
   @doc """
@@ -191,7 +167,7 @@ defmodule ElixirScope.Capture.EnhancedInstrumentation do
   """
   @spec set_data_flow_breakpoint(map()) :: {:ok, String.t()} | {:error, term()}
   def set_data_flow_breakpoint(breakpoint_spec) do
-    GenServer.call(__MODULE__, {:set_data_flow_breakpoint, breakpoint_spec})
+    BreakpointManager.set_data_flow_breakpoint(breakpoint_spec)
   end
 
   @doc """
@@ -214,7 +190,7 @@ defmodule ElixirScope.Capture.EnhancedInstrumentation do
   """
   @spec set_semantic_watchpoint(map()) :: {:ok, String.t()} | {:error, term()}
   def set_semantic_watchpoint(watchpoint_spec) do
-    GenServer.call(__MODULE__, {:set_semantic_watchpoint, watchpoint_spec})
+    WatchpointManager.set_semantic_watchpoint(watchpoint_spec)
   end
 
   @doc """
@@ -282,59 +258,17 @@ defmodule ElixirScope.Capture.EnhancedInstrumentation do
     {:reply, :ok, new_state}
   end
 
-  def handle_call({:set_structural_breakpoint, breakpoint_spec}, _from, state) do
-    case create_structural_breakpoint(breakpoint_spec) do
-      {:ok, breakpoint_id, breakpoint} ->
-        :ets.insert(@breakpoint_table, {breakpoint_id, {:structural, breakpoint}})
-        Logger.info("Structural breakpoint set: #{breakpoint_id}")
-        {:reply, {:ok, breakpoint_id}, state}
-
-      error ->
-        {:reply, error, state}
-    end
-  end
-
-  def handle_call({:set_data_flow_breakpoint, breakpoint_spec}, _from, state) do
-    case create_data_flow_breakpoint(breakpoint_spec) do
-      {:ok, breakpoint_id, breakpoint} ->
-        :ets.insert(@breakpoint_table, {breakpoint_id, {:data_flow, breakpoint}})
-        Logger.info("Data flow breakpoint set: #{breakpoint_id}")
-        {:reply, {:ok, breakpoint_id}, state}
-
-      error ->
-        {:reply, error, state}
-    end
-  end
-
-  def handle_call({:set_semantic_watchpoint, watchpoint_spec}, _from, state) do
-    case create_semantic_watchpoint(watchpoint_spec) do
-      {:ok, watchpoint_id, watchpoint} ->
-        :ets.insert(@watchpoint_table, {watchpoint_id, watchpoint})
-        Logger.info("Semantic watchpoint set: #{watchpoint_id}")
-        {:reply, {:ok, watchpoint_id}, state}
-
-      error ->
-        {:reply, error, state}
-    end
-  end
-
   def handle_call({:remove_breakpoint, breakpoint_id}, _from, state) do
-    :ets.delete(@breakpoint_table, breakpoint_id)
-    :ets.delete(@watchpoint_table, breakpoint_id)
+    BreakpointManager.remove_breakpoint(breakpoint_id)
+    WatchpointManager.remove_watchpoint(breakpoint_id)
     Logger.info("Breakpoint/watchpoint removed: #{breakpoint_id}")
     {:reply, :ok, state}
   end
 
   def handle_call(:list_breakpoints, _from, state) do
-    structural_breakpoints = :ets.select(@breakpoint_table, [
-      {{:'$1', {:structural, :'$2'}}, [], [{{:'$1', :'$2'}}]}
-    ]) |> Enum.into(%{})
-
-    data_flow_breakpoints = :ets.select(@breakpoint_table, [
-      {{:'$1', {:data_flow, :'$2'}}, [], [{{:'$1', :'$2'}}]}
-    ]) |> Enum.into(%{})
-
-    semantic_watchpoints = :ets.tab2list(@watchpoint_table) |> Enum.into(%{})
+    structural_breakpoints = BreakpointManager.list_structural_breakpoints()
+    data_flow_breakpoints = BreakpointManager.list_data_flow_breakpoints()
+    semantic_watchpoints = WatchpointManager.list_watchpoints()
 
     breakpoints = %{
       structural: structural_breakpoints,
@@ -352,9 +286,9 @@ defmodule ElixirScope.Capture.EnhancedInstrumentation do
       breakpoint_stats: state.breakpoint_stats,
       correlation_stats: state.correlation_stats,
       active_breakpoints: %{
-        structural: count_breakpoints_by_type(:structural),
-        data_flow: count_breakpoints_by_type(:data_flow),
-        semantic: :ets.info(@watchpoint_table, :size)
+        structural: BreakpointManager.count_structural_breakpoints(),
+        data_flow: BreakpointManager.count_data_flow_breakpoints(),
+        semantic: WatchpointManager.count_watchpoints()
       }
     }
 
@@ -362,67 +296,17 @@ defmodule ElixirScope.Capture.EnhancedInstrumentation do
   end
 
   def handle_cast({:enhanced_function_entry, module, function, args, correlation_id, ast_node_id}, state) do
-    if state.ast_correlation_enabled do
-      # Evaluate structural breakpoints
-      evaluate_structural_breakpoints(module, function, args, ast_node_id, state)
-
-      # Report to standard instrumentation with AST correlation
-      InstrumentationRuntime.report_ast_function_entry_with_node_id(
-        module, function, args, correlation_id, ast_node_id
-      )
-
-      # Correlate with AST repository if available
-      if state.ast_repo do
-        correlate_event_async(state.ast_repo, %{
-          event_type: :function_entry,
-          module: module,
-          function: function,
-          arity: length(args),
-          correlation_id: correlation_id,
-          ast_node_id: ast_node_id,
-          timestamp: System.monotonic_time(:nanosecond)
-        })
-      end
-    else
-      # Standard reporting without AST correlation
-      InstrumentationRuntime.report_function_entry(module, function, args)
-    end
-
+    EventHandler.handle_function_entry(module, function, args, correlation_id, ast_node_id, state)
     {:noreply, state}
   end
 
   def handle_cast({:enhanced_function_exit, correlation_id, return_value, duration_ns, ast_node_id}, state) do
-    if state.ast_correlation_enabled do
-      # Report to standard instrumentation with AST correlation
-      InstrumentationRuntime.report_ast_function_exit_with_node_id(
-        correlation_id, return_value, duration_ns, ast_node_id
-      )
-
-      # Evaluate performance-based breakpoints
-      evaluate_performance_breakpoints(duration_ns, ast_node_id, state)
-    else
-      # Standard reporting without AST correlation
-      InstrumentationRuntime.report_function_exit(correlation_id, return_value, duration_ns)
-    end
-
+    EventHandler.handle_function_exit(correlation_id, return_value, duration_ns, ast_node_id, state)
     {:noreply, state}
   end
 
   def handle_cast({:enhanced_variable_snapshot, correlation_id, variables, line, ast_node_id}, state) do
-    if state.ast_correlation_enabled do
-      # Evaluate semantic watchpoints
-      evaluate_semantic_watchpoints(variables, ast_node_id, state)
-
-      # Evaluate data flow breakpoints
-      evaluate_data_flow_breakpoints(variables, ast_node_id, state)
-
-      # Report to standard instrumentation with AST correlation
-      InstrumentationRuntime.report_ast_variable_snapshot(correlation_id, variables, line, ast_node_id)
-    else
-      # Standard reporting without AST correlation
-      InstrumentationRuntime.report_local_variable_snapshot(correlation_id, variables, line)
-    end
-
+    EventHandler.handle_variable_snapshot(correlation_id, variables, line, ast_node_id, state)
     {:noreply, state}
   end
 
@@ -434,252 +318,4 @@ defmodule ElixirScope.Capture.EnhancedInstrumentation do
     # For now, we'll use the enhanced reporting functions directly
     :ok
   end
-
-  defp create_structural_breakpoint(spec) do
-    breakpoint_id = Map.get(spec, :id, generate_breakpoint_id("structural"))
-
-    breakpoint = %{
-      id: breakpoint_id,
-      pattern: Map.get(spec, :pattern),
-      condition: Map.get(spec, :condition, :any),
-      ast_path: Map.get(spec, :ast_path, []),
-      enabled: Map.get(spec, :enabled, true),
-      hit_count: 0,
-      created_at: System.system_time(:nanosecond),
-      metadata: Map.get(spec, :metadata, %{})
-    }
-
-    case validate_structural_breakpoint(breakpoint) do
-      :ok -> {:ok, breakpoint_id, breakpoint}
-      error -> error
-    end
-  end
-
-  defp create_data_flow_breakpoint(spec) do
-    breakpoint_id = Map.get(spec, :id, generate_breakpoint_id("data_flow"))
-
-    breakpoint = %{
-      id: breakpoint_id,
-      variable: Map.get(spec, :variable),
-      ast_path: Map.get(spec, :ast_path, []),
-      flow_conditions: Map.get(spec, :flow_conditions, [:any]),
-      enabled: Map.get(spec, :enabled, true),
-      hit_count: 0,
-      created_at: System.system_time(:nanosecond),
-      metadata: Map.get(spec, :metadata, %{})
-    }
-
-    case validate_data_flow_breakpoint(breakpoint) do
-      :ok -> {:ok, breakpoint_id, breakpoint}
-      error -> error
-    end
-  end
-
-  defp create_semantic_watchpoint(spec) do
-    watchpoint_id = Map.get(spec, :id, generate_watchpoint_id())
-
-    watchpoint = %{
-      id: watchpoint_id,
-      variable: Map.get(spec, :variable),
-      track_through: Map.get(spec, :track_through, [:all]),
-      ast_scope: Map.get(spec, :ast_scope),
-      enabled: Map.get(spec, :enabled, true),
-      value_history: [],
-      created_at: System.system_time(:nanosecond),
-      metadata: Map.get(spec, :metadata, %{})
-    }
-
-    case validate_semantic_watchpoint(watchpoint) do
-      :ok -> {:ok, watchpoint_id, watchpoint}
-      error -> error
-    end
-  end
-
-  defp evaluate_structural_breakpoints(module, function, args, ast_node_id, _state) do
-    start_time = System.monotonic_time(:microsecond)
-
-    # Get all structural breakpoints
-    structural_breakpoints = :ets.select(@breakpoint_table, [
-      {{:'$1', {:structural, :'$2'}}, [], [:'$2']}
-    ])
-
-    Enum.each(structural_breakpoints, fn breakpoint ->
-      if breakpoint.enabled and matches_structural_pattern?(module, function, args, breakpoint) do
-        trigger_structural_breakpoint(breakpoint, ast_node_id)
-      end
-    end)
-
-    end_time = System.monotonic_time(:microsecond)
-    duration = end_time - start_time
-
-    if duration > @breakpoint_eval_timeout do
-      Logger.warning("Structural breakpoint evaluation took #{duration}µs (target: #{@breakpoint_eval_timeout}µs)")
-    end
-  end
-
-  defp evaluate_data_flow_breakpoints(variables, ast_node_id, _state) do
-    # Get all data flow breakpoints
-    data_flow_breakpoints = :ets.select(@breakpoint_table, [
-      {{:'$1', {:data_flow, :'$2'}}, [], [:'$2']}
-    ])
-
-    Enum.each(data_flow_breakpoints, fn breakpoint ->
-      if breakpoint.enabled and matches_data_flow_pattern?(variables, breakpoint) do
-        trigger_data_flow_breakpoint(breakpoint, ast_node_id, variables)
-      end
-    end)
-  end
-
-  defp evaluate_semantic_watchpoints(variables, ast_node_id, _state) do
-    # Get all semantic watchpoints
-    watchpoints = :ets.tab2list(@watchpoint_table)
-
-    Enum.each(watchpoints, fn {_id, watchpoint} ->
-      if watchpoint.enabled and Map.has_key?(variables, watchpoint.variable) do
-        update_semantic_watchpoint(watchpoint, variables[watchpoint.variable], ast_node_id)
-      end
-    end)
-  end
-
-  defp evaluate_performance_breakpoints(duration_ns, ast_node_id, _state) do
-    # Get performance-based breakpoints
-    performance_breakpoints = :ets.select(@breakpoint_table, [
-      {{:'$1', {:structural, :'$2'}},
-       [{:==, {:map_get, :condition, :'$2'}, :slow_execution}],
-       [:'$2']}
-    ])
-
-    Enum.each(performance_breakpoints, fn breakpoint ->
-      threshold = Map.get(breakpoint.metadata, :duration_threshold_ns, 1_000_000)  # 1ms default
-
-      if duration_ns > threshold do
-        trigger_performance_breakpoint(breakpoint, ast_node_id, duration_ns)
-      end
-    end)
-  end
-
-  defp matches_structural_pattern?(module, function, _args, breakpoint) do
-    # Simple pattern matching - in practice this would be more sophisticated
-    case breakpoint.ast_path do
-      [] -> true  # Match any
-      [target_module] -> module == String.to_atom(target_module)
-      [target_module, target_function] ->
-        module == String.to_atom(target_module) and function == String.to_atom(target_function)
-      _ -> false
-    end
-  end
-
-  defp matches_data_flow_pattern?(variables, breakpoint) do
-    Map.has_key?(variables, breakpoint.variable)
-  end
-
-  defp trigger_structural_breakpoint(breakpoint, ast_node_id) do
-    Logger.info("🔴 Structural breakpoint triggered: #{breakpoint.id} at #{ast_node_id}")
-
-    # Update hit count
-    updated_breakpoint = %{breakpoint | hit_count: breakpoint.hit_count + 1}
-    :ets.insert(@breakpoint_table, {breakpoint.id, {:structural, updated_breakpoint}})
-
-    # Trigger debugger break (would integrate with debugger)
-    trigger_debugger_break(:structural, breakpoint, ast_node_id)
-  end
-
-  defp trigger_data_flow_breakpoint(breakpoint, ast_node_id, variables) do
-    Logger.info("🔵 Data flow breakpoint triggered: #{breakpoint.id} at #{ast_node_id}")
-    Logger.info("Variable #{breakpoint.variable} = #{inspect(variables[breakpoint.variable])}")
-
-    # Update hit count
-    updated_breakpoint = %{breakpoint | hit_count: breakpoint.hit_count + 1}
-    :ets.insert(@breakpoint_table, {breakpoint.id, {:data_flow, updated_breakpoint}})
-
-    # Trigger debugger break
-    trigger_debugger_break(:data_flow, breakpoint, ast_node_id, variables)
-  end
-
-  defp trigger_performance_breakpoint(breakpoint, ast_node_id, duration_ns) do
-    Logger.info("🟡 Performance breakpoint triggered: #{breakpoint.id} at #{ast_node_id}")
-    Logger.info("Duration: #{duration_ns / 1_000_000}ms")
-
-    # Trigger debugger break
-    trigger_debugger_break(:performance, breakpoint, ast_node_id, %{duration_ns: duration_ns})
-  end
-
-  defp update_semantic_watchpoint(watchpoint, value, ast_node_id) do
-    # Add value to history
-    value_entry = %{
-      value: value,
-      timestamp: System.monotonic_time(:nanosecond),
-      ast_node_id: ast_node_id
-    }
-
-    updated_history = [value_entry | watchpoint.value_history]
-    |> Enum.take(100)  # Keep last 100 values
-
-    updated_watchpoint = %{watchpoint | value_history: updated_history}
-    :ets.insert(@watchpoint_table, {watchpoint.id, updated_watchpoint})
-
-    Logger.debug("📊 Semantic watchpoint updated: #{watchpoint.id} = #{inspect(value)}")
-  end
-
-  defp trigger_debugger_break(type, breakpoint, ast_node_id, context \\ %{}) do
-    # This would integrate with a debugger interface
-    # For now, we'll just log and potentially send to a debugging service
-
-    break_event = %{
-      type: type,
-      breakpoint_id: breakpoint.id,
-      ast_node_id: ast_node_id,
-      context: context,
-      timestamp: System.system_time(:nanosecond),
-      process: self()
-    }
-
-    # Send to debugging service or UI
-    send_to_debugger(break_event)
-  end
-
-  defp send_to_debugger(break_event) do
-    # This would send the break event to a debugger UI or service
-    # For now, we'll just store it in ETS for retrieval
-    :ets.insert(@table_name, {:last_break, break_event})
-
-    # Could also send to a GenServer that manages debugger UI
-    # GenServer.cast(ElixirScope.Debugger.UI, {:breakpoint_hit, break_event})
-  end
-
-  defp correlate_event_async(ast_repo, event) do
-    # Asynchronously correlate event with AST repository
-    Task.start(fn ->
-      case RuntimeCorrelator.correlate_event_to_ast(ast_repo, event) do
-        {:ok, _ast_context} -> :ok
-        {:error, reason} ->
-          Logger.debug("AST correlation failed: #{inspect(reason)}")
-      end
-    end)
-  end
-
-  # Utility Functions
-
-  defp generate_breakpoint_id(type) do
-    "#{type}_bp_" <> Base.encode16(:crypto.strong_rand_bytes(4), case: :lower)
-  end
-
-  defp generate_watchpoint_id() do
-    "wp_" <> Base.encode16(:crypto.strong_rand_bytes(4), case: :lower)
-  end
-
-  defp count_breakpoints_by_type(type) do
-    :ets.select(@breakpoint_table, [
-      {{:'$1', {type, :'$2'}}, [], [:'$1']}
-    ]) |> length()
-  end
-
-  defp validate_structural_breakpoint(%{pattern: pattern}) when not is_nil(pattern), do: :ok
-  defp validate_structural_breakpoint(_), do: {:error, :invalid_pattern}
-
-  defp validate_data_flow_breakpoint(%{variable: variable}) when not is_nil(variable), do: :ok
-  defp validate_data_flow_breakpoint(_), do: {:error, :invalid_variable}
-
-  defp validate_semantic_watchpoint(%{variable: variable}) when not is_nil(variable), do: :ok
-  defp validate_semantic_watchpoint(_), do: {:error, :invalid_variable}
 end
