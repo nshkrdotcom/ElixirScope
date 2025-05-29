@@ -44,3 +44,12 @@ config :elixir_scope,
       port: 4001                    # Different port to avoid conflicts
     ]
   ] 
+
+config :elixir_scope, :pattern_matcher,
+  # More verbose logging in development
+  log_level: :debug,
+  enable_performance_metrics: true,
+  
+  # Relaxed timeouts for development
+  pattern_match_timeout: 1000,
+  function_analysis_timeout: 50

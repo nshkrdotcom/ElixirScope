@@ -48,6 +48,17 @@ config :elixir_scope,
     query_timeout: 1000             # Quick timeout for tests
   ]
 
+config :elixir_scope, :pattern_matcher,
+  # Faster execution for tests
+  pattern_match_timeout: 100,
+  function_analysis_timeout: 5,
+  
+  # Disable caching for predictable tests
+  enable_pattern_cache: false,
+  
+  # Test-specific settings
+  log_level: :warning
+
 # Exclude live API tests by default
 # To run live tests: mix test --only live_api
 # To include all tests: mix test --include live_api

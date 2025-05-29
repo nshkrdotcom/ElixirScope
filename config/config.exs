@@ -112,5 +112,30 @@ config :elixir_scope,
     ]
   ]
 
+
+config :elixir_scope, :pattern_matcher,
+  # Performance settings
+  pattern_match_timeout: 500,
+  function_analysis_timeout: 10,
+  max_memory_usage_mb: 100,
+  
+  # Default confidence thresholds
+  default_confidence_threshold: 0.7,
+  high_confidence_threshold: 0.9,
+  
+  # Cache settings
+  enable_pattern_cache: true,
+  cache_ttl_minutes: 30,
+  
+  # Pattern library settings
+  load_default_patterns: true,
+  custom_pattern_paths: [],
+  
+  # Analysis settings
+  enable_ast_analysis: true,
+  enable_behavioral_analysis: true,
+  enable_anti_pattern_analysis: true,
+  context_sensitive_matching: false
+
 # Environment-specific configuration
 import_config "#{config_env()}.exs" 
