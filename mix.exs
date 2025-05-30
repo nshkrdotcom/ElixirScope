@@ -77,6 +77,8 @@ defmodule ElixirScope.MixProject do
       # Benchmarking for performance testing
       {:benchee, "~> 1.1", only: :test},
 
+      {:mox, "~> 1.2", only: :test},
+
       # JSON for configuration and serialization
       {:jason, "~> 1.4"},
 

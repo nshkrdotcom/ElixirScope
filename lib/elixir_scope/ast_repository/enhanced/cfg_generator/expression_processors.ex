@@ -5,8 +5,24 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
 
   alias ElixirScope.ASTRepository.Enhanced.{CFGNode, CFGEdge}
   alias ElixirScope.ASTRepository.Enhanced.CFGGenerator.{
-    StateManager, ASTUtilities, ASTProcessor
+    StateManagerBehaviour, ASTUtilitiesBehaviour, ASTProcessorBehaviour
   }
+
+  # Dependency injection functions - resolve at runtime for test flexibility
+  defp state_manager do
+    Application.get_env(:elixir_scope, :state_manager,
+      ElixirScope.ASTRepository.Enhanced.CFGGenerator.StateManager)
+  end
+
+  defp ast_utilities do
+    Application.get_env(:elixir_scope, :ast_utilities,
+      ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilities)
+  end
+
+  defp ast_processor do
+    Application.get_env(:elixir_scope, :ast_processor,
+      ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTProcessor)
+  end
 
   @doc """
   Processes a statement sequence (block).
@@ -16,7 +32,7 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
     {all_nodes, all_edges, final_exits, all_scopes, final_state} =
       Enum.reduce(statements, {%{}, [], [], %{}, state}, fn stmt, {nodes, edges, prev_exits, scopes, acc_state} ->
         {stmt_nodes, stmt_edges, stmt_exits, stmt_scopes, new_state} =
-          ASTProcessor.process_ast_node(stmt, acc_state)
+          ast_processor().process_ast_node(stmt, acc_state)
 
         # Connect previous statement exits to current statement entries
         connection_edges = if prev_exits == [] do
@@ -60,14 +76,14 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes an assignment operation.
   """
   def process_assignment(pattern, expression, meta, state) do
-    {assign_id, updated_state} = StateManager.generate_node_id("assignment", state)
+    {assign_id, updated_state} = state_manager().generate_node_id("assignment", state)
 
     # Create assignment node
     assign_node = %CFGNode{
       id: assign_id,
       type: :assignment,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
-      line: ASTUtilities.get_line_number(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
+      line: ast_utilities().get_line_number(meta),
       scope_id: state.current_scope,
       expression: {:=, meta, [pattern, expression]},
       predecessors: [],
@@ -77,18 +93,18 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
 
     # Process the expression being assigned first
     {expr_nodes, expr_edges, expr_exits, expr_scopes, expr_state} =
-      ASTProcessor.process_ast_node(expression, updated_state)
+      ast_processor().process_ast_node(expression, updated_state)
 
     # If expression processing returned empty results, create a simple expression node
     {final_expr_nodes, final_expr_edges, final_expr_exits, final_expr_scopes, final_expr_state} =
       if map_size(expr_nodes) == 0 do
         # Create a simple expression node for the right-hand side
-        {expr_node_id, expr_node_state} = StateManager.generate_node_id("expression", expr_state)
+        {expr_node_id, expr_node_state} = state_manager().generate_node_id("expression", expr_state)
         expr_node = %CFGNode{
           id: expr_node_id,
           type: :expression,
-          ast_node_id: ASTUtilities.get_ast_node_id(meta),
-          line: ASTUtilities.get_line_number(meta),
+          ast_node_id: ast_utilities().get_ast_node_id(meta),
+          line: ast_utilities().get_line_number(meta),
           scope_id: state.current_scope,
           expression: expression,
           predecessors: [],
@@ -122,10 +138,10 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes a comprehension (for).
   """
   def process_comprehension(clauses, meta, state) do
-    {comp_id, updated_state} = StateManager.generate_node_id("comprehension", state)
+    {comp_id, updated_state} = state_manager().generate_node_id("comprehension", state)
 
     # Count generators and filters for complexity
-    {generators, filters} = ASTUtilities.analyze_comprehension_clauses(clauses)
+    {generators, filters} = ast_utilities().analyze_comprehension_clauses(clauses)
 
     # Comprehensions always add at least 1 complexity point due to iteration + filtering
     complexity_contribution = max(length(generators) + length(filters), 1)
@@ -134,8 +150,8 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
     comp_node = %CFGNode{
       id: comp_id,
       type: :comprehension,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
-      line: ASTUtilities.get_line_number(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
+      line: ast_utilities().get_line_number(meta),
       scope_id: state.current_scope,
       expression: clauses,
       predecessors: [],
@@ -156,22 +172,22 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes a pipe operation.
   """
   def process_pipe_operation(left, right, meta, state) do
-    line = ASTUtilities.get_line_number(meta)
-    {pipe_id, updated_state} = StateManager.generate_node_id("pipe", state)
+    line = ast_utilities().get_line_number(meta)
+    {pipe_id, updated_state} = state_manager().generate_node_id("pipe", state)
 
     # Process left side of pipe first
     {left_nodes, left_edges, left_exits, left_scopes, left_state} =
-      ASTProcessor.process_ast_node(left, updated_state)
+      ast_processor().process_ast_node(left, updated_state)
 
     # Process right side of pipe
     {right_nodes, right_edges, right_exits, right_scopes, right_state} =
-      ASTProcessor.process_ast_node(right, left_state)
+      ast_processor().process_ast_node(right, left_state)
 
     # Create pipe operation node
     pipe_node = %CFGNode{
       id: pipe_id,
       type: :pipe_operation,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
       line: line,
       scope_id: state.current_scope,
       expression: {:|>, meta, [left, right]},
@@ -217,7 +233,7 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes a function call.
   """
   def process_function_call(func_name, args, meta, state) do
-    line = ASTUtilities.get_line_number(meta)
+    line = ast_utilities().get_line_number(meta)
 
     # Check if this is a guard function
     node_type = if func_name in [:is_map, :is_list, :is_atom, :is_binary, :is_integer, :is_float, :is_number, :is_boolean, :is_tuple, :is_pid, :is_reference, :is_function] do
@@ -226,12 +242,12 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
       :function_call
     end
 
-    {call_id, updated_state} = StateManager.generate_node_id("function_call", state)
+    {call_id, updated_state} = state_manager().generate_node_id("function_call", state)
 
     call_node = %CFGNode{
       id: call_id,
       type: node_type,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
       line: line,
       scope_id: state.current_scope,
       expression: {func_name, meta, args},
@@ -248,13 +264,13 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes a module function call.
   """
   def process_module_function_call(module, func_name, args, meta1, meta2, state) do
-    line = ASTUtilities.get_line_number(meta2)
-    {call_id, updated_state} = StateManager.generate_node_id("module_call", state)
+    line = ast_utilities().get_line_number(meta2)
+    {call_id, updated_state} = state_manager().generate_node_id("module_call", state)
 
     call_node = %CFGNode{
       id: call_id,
       type: :function_call,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta2),
+      ast_node_id: ast_utilities().get_ast_node_id(meta2),
       line: line,
       scope_id: state.current_scope,
       expression: {{:., meta1, [module, func_name]}, meta2, args},
@@ -271,13 +287,13 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes a when guard expression.
   """
   def process_when_guard(expr, guard, meta, state) do
-    line = ASTUtilities.get_line_number(meta)
-    {guard_id, updated_state} = StateManager.generate_node_id("guard", state)
+    line = ast_utilities().get_line_number(meta)
+    {guard_id, updated_state} = state_manager().generate_node_id("guard", state)
 
     guard_node = %CFGNode{
       id: guard_id,
       type: :guard_check,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
       line: line,
       scope_id: state.current_scope,
       expression: {:when, meta, [expr, guard]},
@@ -294,13 +310,13 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes an anonymous function.
   """
   def process_anonymous_function(clauses, meta, state) do
-    line = ASTUtilities.get_line_number(meta)
-    {fn_id, updated_state} = StateManager.generate_node_id("anonymous_fn", state)
+    line = ast_utilities().get_line_number(meta)
+    {fn_id, updated_state} = state_manager().generate_node_id("anonymous_fn", state)
 
     fn_node = %CFGNode{
       id: fn_id,
       type: :anonymous_function,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
       line: line,
       scope_id: state.current_scope,
       expression: {:fn, meta, clauses},
@@ -317,13 +333,13 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes a raise statement.
   """
   def process_raise_statement(args, meta, state) do
-    line = ASTUtilities.get_line_number(meta)
-    {raise_id, updated_state} = StateManager.generate_node_id("raise", state)
+    line = ast_utilities().get_line_number(meta)
+    {raise_id, updated_state} = state_manager().generate_node_id("raise", state)
 
     raise_node = %CFGNode{
       id: raise_id,
       type: :raise,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
       line: line,
       scope_id: state.current_scope,
       expression: {:raise, meta, args},
@@ -340,13 +356,13 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes a throw statement.
   """
   def process_throw_statement(value, meta, state) do
-    line = ASTUtilities.get_line_number(meta)
-    {throw_id, updated_state} = StateManager.generate_node_id("throw", state)
+    line = ast_utilities().get_line_number(meta)
+    {throw_id, updated_state} = state_manager().generate_node_id("throw", state)
 
     throw_node = %CFGNode{
       id: throw_id,
       type: :throw,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
       line: line,
       scope_id: state.current_scope,
       expression: {:throw, meta, [value]},
@@ -363,13 +379,13 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes an exit statement.
   """
   def process_exit_statement(reason, meta, state) do
-    line = ASTUtilities.get_line_number(meta)
-    {exit_id, updated_state} = StateManager.generate_node_id("exit", state)
+    line = ast_utilities().get_line_number(meta)
+    {exit_id, updated_state} = state_manager().generate_node_id("exit", state)
 
     exit_node = %CFGNode{
       id: exit_id,
       type: :exit_call,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
       line: line,
       scope_id: state.current_scope,
       expression: {:exit, meta, [reason]},
@@ -386,13 +402,13 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes a spawn statement.
   """
   def process_spawn_statement(args, meta, state) do
-    line = ASTUtilities.get_line_number(meta)
-    {spawn_id, updated_state} = StateManager.generate_node_id("spawn", state)
+    line = ast_utilities().get_line_number(meta)
+    {spawn_id, updated_state} = state_manager().generate_node_id("spawn", state)
 
     spawn_node = %CFGNode{
       id: spawn_id,
       type: :spawn,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
       line: line,
       scope_id: state.current_scope,
       expression: {:spawn, meta, args},
@@ -409,13 +425,13 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes a send statement.
   """
   def process_send_statement(pid, message, meta, state) do
-    line = ASTUtilities.get_line_number(meta)
-    {send_id, updated_state} = StateManager.generate_node_id("send", state)
+    line = ast_utilities().get_line_number(meta)
+    {send_id, updated_state} = state_manager().generate_node_id("send", state)
 
     send_node = %CFGNode{
       id: send_id,
       type: :send,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
       line: line,
       scope_id: state.current_scope,
       expression: {:send, meta, [pid, message]},
@@ -432,22 +448,22 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes a binary operation.
   """
   def process_binary_operation(op, left, right, meta, state) do
-    {op_id, updated_state} = StateManager.generate_node_id("binary_op", state)
+    {op_id, updated_state} = state_manager().generate_node_id("binary_op", state)
 
     # Process left operand first
     {left_nodes, left_edges, left_exits, left_scopes, left_state} =
-      ASTProcessor.process_ast_node(left, updated_state)
+      ast_processor().process_ast_node(left, updated_state)
 
     # Process right operand
     {right_nodes, right_edges, right_exits, right_scopes, right_state} =
-      ASTProcessor.process_ast_node(right, left_state)
+      ast_processor().process_ast_node(right, left_state)
 
     # Create binary operation node
     op_node = %CFGNode{
       id: op_id,
       type: :binary_operation,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
-      line: ASTUtilities.get_line_number(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
+      line: ast_utilities().get_line_number(meta),
       scope_id: state.current_scope,
       expression: {op, meta, [left, right]},
       predecessors: left_exits ++ right_exits,
@@ -490,13 +506,13 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes a unary operation.
   """
   def process_unary_operation(op, operand, meta, state) do
-    {op_id, updated_state} = StateManager.generate_node_id("unary_op", state)
+    {op_id, updated_state} = state_manager().generate_node_id("unary_op", state)
 
     op_node = %CFGNode{
       id: op_id,
       type: :unary_operation,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
-      line: ASTUtilities.get_line_number(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
+      line: ast_utilities().get_line_number(meta),
       scope_id: state.current_scope,
       expression: {op, meta, [operand]},
       predecessors: [],
@@ -512,13 +528,13 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes a variable reference.
   """
   def process_variable_reference(var_name, meta, state) do
-    {var_id, updated_state} = StateManager.generate_node_id("variable", state)
+    {var_id, updated_state} = state_manager().generate_node_id("variable", state)
 
     var_node = %CFGNode{
       id: var_id,
       type: :variable,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
-      line: ASTUtilities.get_line_number(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
+      line: ast_utilities().get_line_number(meta),
       scope_id: state.current_scope,
       expression: {var_name, meta, nil},
       predecessors: [],
@@ -534,7 +550,7 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes a literal value.
   """
   def process_literal_value(literal, state) do
-    {literal_id, updated_state} = StateManager.generate_node_id("literal", state)
+    {literal_id, updated_state} = state_manager().generate_node_id("literal", state)
 
     literal_node = %CFGNode{
       id: literal_id,
@@ -545,7 +561,7 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
       expression: literal,
       predecessors: [],
       successors: [],
-      metadata: %{value: literal, type: ASTUtilities.get_literal_type(literal)}
+      metadata: %{value: literal, type: ast_utilities().get_literal_type(literal)}
     }
 
     nodes = %{literal_id => literal_node}
@@ -556,13 +572,13 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes tuple construction.
   """
   def process_tuple_construction(elements, meta, state) do
-    {tuple_id, updated_state} = StateManager.generate_node_id("tuple", state)
+    {tuple_id, updated_state} = state_manager().generate_node_id("tuple", state)
 
     tuple_node = %CFGNode{
       id: tuple_id,
       type: :tuple,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
-      line: ASTUtilities.get_line_number(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
+      line: ast_utilities().get_line_number(meta),
       scope_id: state.current_scope,
       expression: {:{}, meta, elements},
       predecessors: [],
@@ -578,7 +594,7 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes list construction.
   """
   def process_list_construction(list, state) do
-    {list_id, updated_state} = StateManager.generate_node_id("list", state)
+    {list_id, updated_state} = state_manager().generate_node_id("list", state)
 
     list_node = %CFGNode{
       id: list_id,
@@ -600,13 +616,13 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes map construction.
   """
   def process_map_construction(pairs, meta, state) do
-    {map_id, updated_state} = StateManager.generate_node_id("map", state)
+    {map_id, updated_state} = state_manager().generate_node_id("map", state)
 
     map_node = %CFGNode{
       id: map_id,
       type: :map,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
-      line: ASTUtilities.get_line_number(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
+      line: ast_utilities().get_line_number(meta),
       scope_id: state.current_scope,
       expression: {:%{}, meta, pairs},
       predecessors: [],
@@ -622,13 +638,13 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes map update.
   """
   def process_map_update(map, updates, meta, state) do
-    {update_id, updated_state} = StateManager.generate_node_id("map_update", state)
+    {update_id, updated_state} = state_manager().generate_node_id("map_update", state)
 
     update_node = %CFGNode{
       id: update_id,
       type: :map_update,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
-      line: ASTUtilities.get_line_number(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
+      line: ast_utilities().get_line_number(meta),
       scope_id: state.current_scope,
       expression: {:%{}, meta, [map | updates]},
       predecessors: [],
@@ -644,13 +660,13 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes struct construction.
   """
   def process_struct_construction(struct_name, fields, meta, state) do
-    {struct_id, updated_state} = StateManager.generate_node_id("struct", state)
+    {struct_id, updated_state} = state_manager().generate_node_id("struct", state)
 
     struct_node = %CFGNode{
       id: struct_id,
       type: :struct,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
-      line: ASTUtilities.get_line_number(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
+      line: ast_utilities().get_line_number(meta),
       scope_id: state.current_scope,
       expression: {:%, meta, [struct_name, fields]},
       predecessors: [],
@@ -666,13 +682,13 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes access operation.
   """
   def process_access_operation(container, key, meta1, meta2, state) do
-    {access_id, updated_state} = StateManager.generate_node_id("access", state)
+    {access_id, updated_state} = state_manager().generate_node_id("access", state)
 
     access_node = %CFGNode{
       id: access_id,
       type: :access,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta2),
-      line: ASTUtilities.get_line_number(meta2),
+      ast_node_id: ast_utilities().get_ast_node_id(meta2),
+      line: ast_utilities().get_line_number(meta2),
       scope_id: state.current_scope,
       expression: {{:., meta1, [Access, :get]}, meta2, [container, key]},
       predecessors: [],
@@ -688,13 +704,13 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes attribute access.
   """
   def process_attribute_access(attr, meta, state) do
-    {attr_id, updated_state} = StateManager.generate_node_id("attribute", state)
+    {attr_id, updated_state} = state_manager().generate_node_id("attribute", state)
 
     attr_node = %CFGNode{
       id: attr_id,
       type: :attribute,
-      ast_node_id: ASTUtilities.get_ast_node_id(meta),
-      line: ASTUtilities.get_line_number(meta),
+      ast_node_id: ast_utilities().get_ast_node_id(meta),
+      line: ast_utilities().get_line_number(meta),
       scope_id: state.current_scope,
       expression: {:@, meta, [attr]},
       predecessors: [],
@@ -710,7 +726,7 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ExpressionProcessors d
   Processes a simple expression (fallback).
   """
   def process_simple_expression(ast, state) do
-    {expr_id, updated_state} = StateManager.generate_node_id("expression", state)
+    {expr_id, updated_state} = state_manager().generate_node_id("expression", state)
 
     # Determine the expression type based on the AST structure
     expr_type = case ast do

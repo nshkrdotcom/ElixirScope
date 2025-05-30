@@ -3,9 +3,12 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilities do
   Utility functions for working with AST nodes.
   """
 
+  @behaviour ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilitiesBehaviour
+
   @doc """
   Extracts AST node ID from metadata.
   """
+  @impl ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilitiesBehaviour
   def get_ast_node_id(meta) do
     Keyword.get(meta, :ast_node_id)
   end
@@ -13,6 +16,7 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilities do
   @doc """
   Extracts line number from metadata.
   """
+  @impl ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilitiesBehaviour
   def get_line_number(meta) do
     Keyword.get(meta, :line, 1)
   end
@@ -20,6 +24,7 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilities do
   @doc """
   Extracts function parameters from function head.
   """
+  @impl ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilitiesBehaviour
   def extract_function_parameters({_name, _meta, args}) when is_list(args) do
     Enum.map(args, fn
       {var, _meta, nil} when is_atom(var) -> Atom.to_string(var)
@@ -32,6 +37,7 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilities do
   @doc """
   Extracts variable names from a pattern.
   """
+  @impl ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilitiesBehaviour
   def extract_pattern_variables(pattern) do
     case pattern do
       {var, _meta, nil} when is_atom(var) -> [Atom.to_string(var)]
@@ -44,6 +50,7 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilities do
   @doc """
   Calculates pattern matching probability (simplified).
   """
+  @impl ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilitiesBehaviour
   def calculate_pattern_probability(_pattern) do
     # Simplified probability - could be more sophisticated
     0.5
@@ -52,6 +59,7 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilities do
   @doc """
   Determines the type of a literal value.
   """
+  @impl ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilitiesBehaviour
   def get_literal_type(literal) do
     cond do
       is_atom(literal) -> :atom
@@ -65,6 +73,7 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilities do
   @doc """
   Analyzes comprehension clauses to separate generators and filters.
   """
+  @impl ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilitiesBehaviour
   def analyze_comprehension_clauses(clauses) do
     Enum.reduce(clauses, {[], []}, fn clause, {generators, filters} ->
       case clause do

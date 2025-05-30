@@ -3,6 +3,8 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTProcessor do
   Main AST processing functions for the CFG generator.
   """
 
+  @behaviour ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTProcessorBehaviour
+
   alias ElixirScope.ASTRepository.Enhanced.{CFGNode, CFGEdge, ScopeInfo}
   alias ElixirScope.ASTRepository.Enhanced.CFGGenerator.{
     StateManager, ASTUtilities, ControlFlowProcessors, ExpressionProcessors
@@ -11,10 +13,12 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTProcessor do
   @doc """
   Processes a function body AST and returns CFG components.
   """
+  @impl ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTProcessorBehaviour
   def process_function_body({:def, meta, [head, [do: body]]}, state) do
     process_function_body({:defp, meta, [head, [do: body]]}, state)
   end
 
+  @impl ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTProcessorBehaviour
   def process_function_body({:defp, meta, [head, [do: body]]}, state) do
     line = ASTUtilities.get_line_number(meta)
 
@@ -117,6 +121,7 @@ defmodule ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTProcessor do
   @doc """
   Main AST node processing dispatcher.
   """
+  @impl ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTProcessorBehaviour
   def process_ast_node(ast, state) do
     case ast do
       # Block of statements - put this FIRST to ensure it matches before function call pattern

@@ -1,5 +1,23 @@
 ExUnit.start()
 
+# Configure Mox for dependency injection testing
+Mox.defmock(ElixirScope.MockStateManager,
+  for: ElixirScope.ASTRepository.Enhanced.CFGGenerator.StateManagerBehaviour)
+
+Mox.defmock(ElixirScope.MockASTUtilities,
+  for: ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilitiesBehaviour)
+
+Mox.defmock(ElixirScope.MockASTProcessor,
+  for: ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTProcessorBehaviour)
+
+# Set default dependency injection configuration for tests
+Application.put_env(:elixir_scope, :state_manager,
+  ElixirScope.ASTRepository.Enhanced.CFGGenerator.StateManager)
+Application.put_env(:elixir_scope, :ast_utilities,
+  ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilities)
+Application.put_env(:elixir_scope, :ast_processor,
+  ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTProcessor)
+
 # Configure test environment
 Application.put_env(:elixir_scope, :test_mode, true)
 
@@ -96,7 +114,7 @@ defmodule ElixirScope.TestHelpers do
 
   @doc """
   Ensures ElixirScope.Config GenServer is available for tests that depend on it.
-  
+
   This function uses a more robust approach with proper synchronization
   and longer timeouts to handle race conditions in async tests.
   """
@@ -112,7 +130,7 @@ defmodule ElixirScope.TestHelpers do
       nil ->
         # Config not running, start it with retry logic
         start_config_with_retry(3)
-      
+
       pid when is_pid(pid) ->
         # Config is running, verify it's responsive with longer timeout
         case test_config_responsiveness(pid) do
@@ -125,22 +143,22 @@ defmodule ElixirScope.TestHelpers do
   defp start_config_with_retry(0), do: {:error, :max_retries_exceeded}
   defp start_config_with_retry(retries) do
     case ElixirScope.Config.start_link([]) do
-      {:ok, pid} -> 
+      {:ok, pid} ->
         case wait_for_config_ready(pid, 100) do
           :ok -> :ok
-          :timeout -> 
+          :timeout ->
             GenServer.stop(pid, :kill, 1000)
             start_config_with_retry(retries - 1)
         end
-      
-      {:error, {:already_started, pid}} -> 
+
+      {:error, {:already_started, pid}} ->
         # Race condition - another process started it
         case wait_for_config_ready(pid, 100) do
           :ok -> :ok
           :timeout -> start_config_with_retry(retries - 1)
         end
-      
-      {:error, _reason} -> 
+
+      {:error, _reason} ->
         Process.sleep(50)  # Brief pause before retry
         start_config_with_retry(retries - 1)
     end
@@ -158,7 +176,7 @@ defmodule ElixirScope.TestHelpers do
     catch
       :exit, _ -> :ok  # Process already dead or stopping
     end
-    
+
     Process.sleep(50)  # Allow cleanup
     start_config_with_retry(retries)
   end
@@ -225,4 +243,4 @@ defmodule ElixirScope.TestHelpers do
   defp wait_until(_fun, _timeout, _interval) do
     {:error, :timeout}
   end
-end 
+end

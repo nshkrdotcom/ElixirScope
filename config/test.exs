@@ -46,7 +46,19 @@ config :elixir_scope,
   interface: [
     iex_helpers: false,             # Disable IEx helpers in tests
     query_timeout: 1000             # Quick timeout for tests
-  ]
+  ],
+
+  state_manager: ElixirScope.ASTRepository.Enhanced.CFGGenerator.StateManager,
+  ast_utilities: ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilities,  
+  ast_processor: ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTProcessor
+
+
+
+
+
+
+
+
 
 config :elixir_scope, :pattern_matcher,
   # Faster execution for tests

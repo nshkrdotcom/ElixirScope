@@ -15,6 +15,8 @@ defmodule ElixirScope.Application do
   def start(_type, _args) do
     Logger.info("Starting ElixirScope application...")
 
+    ensure_default_cfg_dependencies()
+
     children = [
       # Core configuration and utilities (no dependencies)
       {ElixirScope.Config, []},
@@ -39,6 +41,23 @@ defmodule ElixirScope.Application do
       {:error, reason} ->
         Logger.error("Failed to start ElixirScope application: #{inspect(reason)}")
         {:error, reason}
+    end
+  end
+
+  defp ensure_default_cfg_dependencies do
+    unless Application.get_env(:elixir_scope, :state_manager) do
+      Application.put_env(:elixir_scope, :state_manager,
+        ElixirScope.ASTRepository.Enhanced.CFGGenerator.StateManager)
+    end
+
+    unless Application.get_env(:elixir_scope, :ast_utilities) do
+      Application.put_env(:elixir_scope, :ast_utilities,
+        ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTUtilities)
+    end
+
+    unless Application.get_env(:elixir_scope, :ast_processor) do
+      Application.put_env(:elixir_scope, :ast_processor,
+        ElixirScope.ASTRepository.Enhanced.CFGGenerator.ASTProcessor)
     end
   end
 
