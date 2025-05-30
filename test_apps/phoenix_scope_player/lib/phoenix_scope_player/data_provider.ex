@@ -11,24 +11,24 @@ defmodule PhoenixScopePlayer.DataProvider do
   Lists all available debug sessions.
   """
   def list_sessions do
-    IO.puts("\n=== Listing Sessions ===")
+    Logger.info("\n=== Listing Sessions ===")
     case File.ls(@sessions_dir) do
       {:ok, session_dirs} ->
-        IO.puts("Found #{length(session_dirs)} session directories")
+        Logger.info("Found #{length(session_dirs)} session directories")
         sessions = session_dirs
         |> Enum.map(&load_session_metadata/1)
         |> Enum.reject(&is_nil/1)
         |> Enum.sort_by(& &1["date"], :desc)
 
-        IO.puts("Processed #{length(sessions)} valid sessions:")
+        Logger.info("Processed #{length(sessions)} valid sessions:")
         Enum.each(sessions, fn session ->
-          IO.puts("  - #{session["id"]}: #{session["event_count"]} events")
+          Logger.info("  - #{session["id"]}: #{session["event_count"]} events")
         end)
         
         sessions
 
       {:error, reason} ->
-        IO.puts("Error listing sessions: #{inspect(reason)}")
+        Logger.error("Error listing sessions: #{inspect(reason)}")
         []
     end
   end
@@ -37,32 +37,71 @@ defmodule PhoenixScopePlayer.DataProvider do
   Gets the complete data for a specific session.
   """
   def get_session_data(session_id) do
-    IO.puts("\n=== Getting Session Data: #{session_id} ===")
+    Logger.info("\n=== Getting Session Data: #{session_id} ===")
     session_dir = Path.join(@sessions_dir, session_id)
 
     with {:ok, metadata} <- read_json_file(session_dir, "metadata.json"),
-         {:ok, events} <- read_json_file(session_dir, "events.json"),
+         {:ok, events_data} <- read_json_file(session_dir, "events.json"),
          {:ok, source_code} <- read_json_file(session_dir, "source_code.json") do
       
-      IO.puts("Metadata: #{inspect(metadata)}")
-      IO.puts("Events count: #{length(events["events"] || [])}")
+      # Transform events into the expected format
+      transformed_events = Enum.map(events_data["events"] || [], fn event ->
+        %{
+          "type" => event["type"],
+          "module" => event["module"],
+          "function" => event["function"],
+          "args" => format_args(event["args"]),
+          "return_value" => format_return_value(event["return_value"]),
+          "pid" => event["pid"],
+          "timestamp" => event["timestamp"],
+          "variables" => event["variables"],
+          "call_stack" => event["call_stack"] || []
+        }
+      end)
+      
+      # Transform source code into the expected format
+      transformed_source_code = %{
+        "files" => Map.new(source_code["files"] || %{}, fn {module, data} ->
+          {module, %{
+            "content" => data["content"],
+            "type" => "elixir"
+          }}
+        end)
+      }
+      
+      Logger.info("Metadata: #{inspect(metadata)}")
+      Logger.info("Events count: #{length(transformed_events)}")
+      Logger.info("Source code files: #{inspect(Map.keys(transformed_source_code["files"]))}")
       
       {:ok, %{
-        metadata: metadata,
-        events: events["events"] || [],
-        source_code: source_code
+        "metadata" => metadata,
+        "events" => transformed_events,
+        "source_code" => transformed_source_code
       }}
     else
       error -> 
-        IO.puts("Error reading session data: #{inspect(error)}")
+        Logger.error("Error reading session data: #{inspect(error)}")
         {:error, :not_found}
     end
   end
 
   # Private helpers
 
+  defp format_args(nil), do: nil
+  defp format_args(args) when is_list(args) do
+    args
+  end
+
+  defp format_return_value(nil), do: nil
+  defp format_return_value(value), do: value
+
+  defp format_value(%{"type" => type, "value" => value}) do
+    "#{type}: #{value}"
+  end
+  defp format_value(value), do: value
+
   defp load_session_metadata(session_dir) do
-    IO.puts("\nLoading metadata for session: #{session_dir}")
+    Logger.info("\nLoading metadata for session: #{session_dir}")
     case read_json_file(Path.join(@sessions_dir, session_dir), "metadata.json") do
       {:ok, metadata} ->
         # Read events file to get actual event count
@@ -78,36 +117,37 @@ defmodule PhoenixScopePlayer.DataProvider do
 
         session = Map.merge(metadata, %{
           "id" => session_dir,
-          "name" => session_dir |> String.replace("_", " ") |> String.capitalize(),
+          "name" => metadata["name"] || session_dir |> String.replace("_", " ") |> String.capitalize(),
           "date" => metadata["timestamp"] || "Unknown",
-          "description" => "Debug session with #{actual_event_count} events"
+          "description" => metadata["description"] || "Debug session with #{actual_event_count} events",
+          "event_count" => actual_event_count
         })
         
-        IO.puts("  Loaded session: #{inspect(session, pretty: true)}")
+        Logger.info("  Loaded session: #{inspect(session, pretty: true)}")
         session
 
       error -> 
-        IO.puts("  Error loading metadata: #{inspect(error)}")
+        Logger.error("  Error loading metadata: #{inspect(error)}")
         nil
     end
   end
 
   defp read_json_file(dir, filename) do
     path = Path.join(dir, filename)
-    IO.puts("Reading JSON file: #{path}")
+    Logger.info("Reading JSON file: #{path}")
 
     case File.read(path) do
       {:ok, content} -> 
         case Jason.decode(content) do
           {:ok, data} -> 
-            IO.puts("  Successfully decoded JSON")
+            Logger.info("  Successfully decoded JSON: #{inspect(String.slice(content, 0..100))}...")
             {:ok, data}
           error -> 
-            IO.puts("  Error decoding JSON: #{inspect(error)}")
+            Logger.error("  Error decoding JSON: #{inspect(error)}")
             error
         end
       {:error, reason} -> 
-        IO.puts("  Error reading file: #{inspect(reason)}")
+        Logger.error("  Error reading file: #{inspect(reason)}")
         {:error, :not_found}
     end
   end

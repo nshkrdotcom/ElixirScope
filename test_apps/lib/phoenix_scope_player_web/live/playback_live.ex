@@ -1,12 +1,19 @@
 defmodule PhoenixScopePlayerWeb.PlaybackLive do
   use PhoenixScopePlayerWeb, :live_view
   alias PhoenixScopePlayer.DataProvider
+  require Logger
 
   def mount(%{"id" => session_id}, _session, socket) do
+    Logger.info("Mounting PlaybackLive with session_id: #{session_id}")
+    
     case DataProvider.get_session_data(session_id) do
       {:ok, session_data} ->
-        events = session_data.events
+        Logger.info("Got session data: #{inspect(session_data, pretty: true)}")
+        events = session_data["events"] || []
         current_event = List.first(events)
+        
+        Logger.info("Events count: #{length(events)}")
+        Logger.info("First event: #{inspect(current_event)}")
 
         {:ok, assign(socket,
           session_id: session_id,
@@ -20,6 +27,7 @@ defmodule PhoenixScopePlayerWeb.PlaybackLive do
         )}
       
       {:error, :not_found} ->
+        Logger.error("Session not found: #{session_id}")
         {:ok, socket
         |> put_flash(:error, "Session not found")
         |> redirect(to: ~p"/")}
@@ -28,8 +36,10 @@ defmodule PhoenixScopePlayerWeb.PlaybackLive do
 
   def handle_event("next_event", _, socket) do
     %{current_event_index: index, session_data: data} = socket.assigns
-    events = data.events
+    events = data["events"] || []
     next_index = min(index + 1, length(events) - 1)
+    
+    Logger.info("Moving to next event: #{next_index} of #{length(events)}")
     
     {:noreply, assign(socket,
       current_event_index: next_index,
@@ -39,8 +49,10 @@ defmodule PhoenixScopePlayerWeb.PlaybackLive do
 
   def handle_event("prev_event", _, socket) do
     %{current_event_index: index, session_data: data} = socket.assigns
-    events = data.events
+    events = data["events"] || []
     prev_index = max(index - 1, 0)
+    
+    Logger.info("Moving to previous event: #{prev_index} of #{length(events)}")
     
     {:noreply, assign(socket,
       current_event_index: prev_index,
@@ -53,7 +65,9 @@ defmodule PhoenixScopePlayerWeb.PlaybackLive do
   end
 
   def handle_event("select_file", %{"file" => file}, socket) do
-    content = get_in(socket.assigns.session_data.source_code, [file, "content"])
+    Logger.info("Selecting file: #{file}")
+    content = get_in(socket.assigns.session_data, ["source_code", "files", file, "content"])
+    Logger.info("Got content: #{inspect(String.slice(content || "", 0..100))}...")
     
     {:noreply, assign(socket,
       current_file: file,
@@ -68,7 +82,7 @@ defmodule PhoenixScopePlayerWeb.PlaybackLive do
         <div class="sm:flex-auto">
           <h1 class="text-base font-semibold leading-6 text-gray-900">Session Playback</h1>
           <p class="mt-2 text-sm text-gray-700">
-            <%= @session_data.metadata["name"] %>
+            <%= @session_data["metadata"]["name"] %>
           </p>
         </div>
         <div class="mt-4 sm:ml-16 sm:mt-0">
@@ -117,7 +131,7 @@ defmodule PhoenixScopePlayerWeb.PlaybackLive do
               <h3 class="text-base font-semibold leading-6 text-gray-900">Source Code</h3>
               <div class="mt-2">
                 <div class="flex space-x-2 mb-2">
-                  <%= for {file, _} <- @session_data.source_code do %>
+                  <%= for {file, _} <- get_in(@session_data, ["source_code", "files"]) || %{} do %>
                     <button
                       type="button"
                       class={"px-2 py-1 text-sm rounded #{if @current_file == file, do: "bg-indigo-600 text-white", else: "bg-gray-100 text-gray-700 hover:bg-gray-200"}"}
@@ -146,28 +160,30 @@ defmodule PhoenixScopePlayerWeb.PlaybackLive do
                   </div>
                   <div class="mb-4">
                     <div class="font-medium text-gray-700">Function</div>
-                    <div class="text-sm text-gray-900"><%= get_in(@current_event, ["data", "module"]) %>.<%= get_in(@current_event, ["data", "function"]) %></div>
+                    <div class="text-sm text-gray-900"><%= @current_event["module"] %>.<%= @current_event["function"] %></div>
                   </div>
-                  <%= if get_in(@current_event, ["data", "args"]) do %>
+                  <%= if @current_event["args"] do %>
                     <div class="mb-4">
                       <div class="font-medium text-gray-700">Arguments</div>
-                      <div class="text-sm text-gray-900"><%= inspect(get_in(@current_event, ["data", "args"])) %></div>
+                      <div class="text-sm text-gray-900"><%= inspect(@current_event["args"]) %></div>
                     </div>
                   <% end %>
-                  <%= if get_in(@current_event, ["data", "return_value"]) do %>
+                  <%= if @current_event["return_value"] do %>
                     <div class="mb-4">
                       <div class="font-medium text-gray-700">Return Value</div>
-                      <div class="text-sm text-gray-900"><%= inspect(get_in(@current_event, ["data", "return_value"])) %></div>
+                      <div class="text-sm text-gray-900"><%= @current_event["return_value"] %></div>
                     </div>
                   <% end %>
-                  <%= if get_in(@current_event, ["data", "variables"]) do %>
+                  <%= if @current_event["pid"] do %>
                     <div class="mb-4">
-                      <div class="font-medium text-gray-700">Variables</div>
-                      <div class="text-sm text-gray-900">
-                        <%= for {var, value} <- get_in(@current_event, ["data", "variables"]) do %>
-                          <div><span class="font-mono"><%= var %></span>: <%= inspect(value) %></div>
-                        <% end %>
-                      </div>
+                      <div class="font-medium text-gray-700">Process ID</div>
+                      <div class="text-sm text-gray-900"><%= @current_event["pid"] %></div>
+                    </div>
+                  <% end %>
+                  <%= if @current_event["timestamp"] do %>
+                    <div class="mb-4">
+                      <div class="font-medium text-gray-700">Timestamp</div>
+                      <div class="text-sm text-gray-900"><%= @current_event["timestamp"] %></div>
                     </div>
                   <% end %>
                 <% else %>
