@@ -26,7 +26,7 @@ defmodule ElixirAnalyzerDemo do
   """
 
   alias ElixirScope.ASTRepository.{EnhancedRepository, MemoryManager}
-  alias ElixirAnalyzerDemo.{AnalysisEngine, SampleDataManager, PerformanceMonitor}
+  alias ElixirAnalyzerDemo.{SampleDataManager, PerformanceMonitor}
 
   @doc """
   Loads sample projects for analysis and demonstration.
@@ -280,6 +280,64 @@ defmodule ElixirAnalyzerDemo do
     end)
   end
 
+  defp create_complex_ast(module_name), do: create_complex_ast(module_name, [])
+  defp create_complex_ast(module_name, opts) do
+    complexity = Keyword.get(opts, :complexity, :medium)
+    
+    case complexity do
+      :high ->
+        quote do
+          defmodule unquote(module_name) do
+            def complex_logic(data) do
+              case data do
+                %{type: :process, items: items} when is_list(items) ->
+                  items
+                  |> Enum.filter(&valid_item?/1)
+                  |> Enum.group_by(&get_category/1)
+                  |> Enum.map(fn {category, items} ->
+                    {category, process_category(category, items)}
+                  end)
+                  |> Enum.into(%{})
+                
+                %{type: :aggregate, data: data} ->
+                  aggregate_data(data)
+                
+                _ ->
+                  {:error, :invalid_data}
+              end
+            end
+            
+            defp valid_item?(%{id: id, value: value}) when is_integer(id) and is_number(value) do
+              value > 0
+            end
+            defp valid_item?(_), do: false
+            
+            defp get_category(%{category: cat}), do: cat
+            defp get_category(_), do: :unknown
+            
+            defp process_category(:important, items) do
+              items |> Enum.map(&enhance_item/1) |> Enum.sort_by(& &1.priority, :desc)
+            end
+            defp process_category(_, items), do: items
+            
+            defp enhance_item(item), do: Map.put(item, :priority, calculate_priority(item))
+            defp calculate_priority(%{value: value}), do: value * 1.5
+            
+            defp aggregate_data(data) when is_list(data) do
+              %{
+                count: length(data),
+                sum: Enum.sum(data),
+                average: Enum.sum(data) / length(data)
+              }
+            end
+          end
+        end
+      
+      _ ->
+        create_sample_ast(module_name)
+    end
+  end
+
   defp benchmark_operations do
     # Module lookup benchmark
     {time_us, _result} = :timer.tc(fn ->
@@ -348,63 +406,6 @@ defmodule ElixirAnalyzerDemo do
           Enum.sum(list)
         end
       end
-    end
-  end
-
-  defp create_complex_ast(module_name, opts \\ []) do
-    complexity = Keyword.get(opts, :complexity, :medium)
-    
-    case complexity do
-      :high ->
-        quote do
-          defmodule unquote(module_name) do
-            def complex_logic(data) do
-              case data do
-                %{type: :process, items: items} when is_list(items) ->
-                  items
-                  |> Enum.filter(&valid_item?/1)
-                  |> Enum.group_by(&get_category/1)
-                  |> Enum.map(fn {category, items} ->
-                    {category, process_category(category, items)}
-                  end)
-                  |> Enum.into(%{})
-                
-                %{type: :aggregate, data: data} ->
-                  aggregate_data(data)
-                
-                _ ->
-                  {:error, :invalid_data}
-              end
-            end
-            
-            defp valid_item?(%{id: id, value: value}) when is_integer(id) and is_number(value) do
-              value > 0
-            end
-            defp valid_item?(_), do: false
-            
-            defp get_category(%{category: cat}), do: cat
-            defp get_category(_), do: :unknown
-            
-            defp process_category(:important, items) do
-              items |> Enum.map(&enhance_item/1) |> Enum.sort_by(& &1.priority, :desc)
-            end
-            defp process_category(_, items), do: items
-            
-            defp enhance_item(item), do: Map.put(item, :priority, calculate_priority(item))
-            defp calculate_priority(%{value: value}), do: value * 1.5
-            
-            defp aggregate_data(data) when is_list(data) do
-              %{
-                count: length(data),
-                sum: Enum.sum(data),
-                average: Enum.sum(data) / length(data)
-              }
-            end
-          end
-        end
-      
-      _ ->
-        create_sample_ast(module_name)
     end
   end
 

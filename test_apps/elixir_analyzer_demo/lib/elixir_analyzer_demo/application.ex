@@ -60,13 +60,15 @@ defmodule ElixirAnalyzerDemo.Application do
     Supervisor.start_link(children, opts)
   end
 
-  # Tell Phoenix to update the endpoint configuration
-  # whenever the application is updated.
+  def stop(_state) do
+    :ok
+  end
+
+  # Optional callbacks
+
   @impl true
   def config_change(changed, _new, removed) do
-    if phoenix_enabled?() do
-      ElixirAnalyzerDemo.Endpoint.config_change(changed, removed)
-    end
+    # Remove the endpoint config_change call since we don't have an Endpoint module
     :ok
   end
 

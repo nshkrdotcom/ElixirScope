@@ -13,7 +13,7 @@ defmodule ElixirAnalyzerDemo.AnalysisEngine do
   
   use GenServer
   
-  alias ElixirScope.ASTRepository.{EnhancedRepository, MemoryManager}
+  alias ElixirScope.ASTRepository.EnhancedRepository
   
   def start_link(opts) do
     GenServer.start_link(__MODULE__, opts, name: __MODULE__)
@@ -392,7 +392,7 @@ defmodule ElixirAnalyzerDemo.AnalysisEngine do
   defp check_inefficient_patterns(ast, bottlenecks) do
     {_, new_bottlenecks} = Macro.prewalk(ast, bottlenecks, fn
       # Check for inefficient list operations
-      {{:., _, [{:__aliases__, _, [:Enum]}, :map]}, _, [list, {{:., _, [{:__aliases__, _, [:Enum]}, :filter]}, _, _}]}, acc ->
+      {{:., _, [{:__aliases__, _, [:Enum]}, :map]}, _, [_list, {{:., _, [{:__aliases__, _, [:Enum]}, :filter]}, _, _}]}, acc ->
         bottleneck = %{
           type: :inefficient_enum_chain,
           severity: :medium,
@@ -498,7 +498,7 @@ defmodule ElixirAnalyzerDemo.AnalysisEngine do
   # Utility functions
   
   defp update_analysis_results(module_name, analysis_result) do
-    EnhancedRepository.update_enhanced_module(module_name, [
+    EnhancedRepository.store_enhanced_module(module_name, [
       metadata: %{
         complexity_score: analysis_result.complexity.score,
         dependency_count: analysis_result.dependencies.total_dependencies,
@@ -563,8 +563,27 @@ defmodule ElixirAnalyzerDemo.AnalysisEngine do
   
   defp count_patterns(_head), do: 1
   defp has_guards_or_pattern_matching?(_params), do: false
-  defp has_interpolation?(_parts), do: false
-  defp looks_like_sql?(_parts), do: false
+  
+  defp has_interpolation?(parts) when is_list(parts) do
+    Enum.any?(parts, fn
+      {:"::", _, [expr, _type]} -> not is_binary(expr)
+      binary when is_binary(binary) -> false
+      _ -> true
+    end)
+  end
+  defp has_interpolation?(_), do: false
+
+  defp looks_like_sql?(parts) when is_list(parts) do
+    sql_keywords = ~w(SELECT INSERT UPDATE DELETE FROM WHERE JOIN)
+    parts_string = Enum.map_join(parts, "", fn
+      binary when is_binary(binary) -> binary
+      _ -> ""
+    end)
+    String.upcase(parts_string)
+    |> then(&Enum.any?(sql_keywords, fn kw -> String.contains?(&1, kw) end))
+  end
+  defp looks_like_sql?(_), do: false
+  
   defp count_by_severity(issues), do: Enum.group_by(issues, & &1.severity) |> Enum.map(fn {k, v} -> {k, length(v)} end) |> Enum.into(%{})
   defp calculate_risk_score(issues), do: length(issues) * 10
   defp estimate_performance_score(_bottlenecks), do: 75.0

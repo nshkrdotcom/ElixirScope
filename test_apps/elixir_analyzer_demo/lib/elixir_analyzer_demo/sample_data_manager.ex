@@ -668,24 +668,78 @@ defmodule ElixirAnalyzerDemo.SampleDataManager do
   
   # Helper functions for generating additional modules
   
-  defp simple_string_ast, do: quote do: defmodule SimpleString, do: def upcase(str), do: String.upcase(str)
-  defp simple_math_ast, do: quote do: defmodule SimpleMath, do: def square(x), do: x * x
-  defp simple_validator_ast, do: quote do: defmodule SimpleValidator, do: def valid_email?(email), do: String.contains?(email, "@")
-  defp simple_converter_ast, do: quote do: defmodule SimpleConverter, do: def to_string(value), do: "#{value}"
-  defp simple_formatter_ast, do: quote do: defmodule SimpleFormatter, do: def format_currency(amount), do: "$#{amount}"
-  defp simple_parser_ast, do: quote do: defmodule SimpleParser, do: def parse_int(str), do: Integer.parse(str)
-  defp simple_helper_ast, do: quote do: defmodule SimpleHelper, do: def timestamp, do: DateTime.utc_now()
-  defp simple_utils_ast, do: quote do: defmodule SimpleUtils, do: def random_id, do: :rand.uniform(1000)
+  defp simple_string_ast, do: quote do: (defmodule SimpleString do
+      def upcase(str) do
+        String.upcase(str)
+      end
+    end)
+  defp simple_math_ast, do: quote do: (defmodule SimpleMath do
+      def square(x) do
+        x * x
+      end
+    end)
+  defp simple_validator_ast, do: quote do: (defmodule SimpleValidator do
+      def valid_email?(email) do
+        String.contains?(email, "@")
+      end
+    end)
+  defp simple_converter_ast, do: quote do: (defmodule SimpleConverter do
+      def to_string(value) do
+        "#{value}"
+      end
+    end)
+  defp simple_formatter_ast, do: quote do: (defmodule SimpleFormatter do
+      def format_currency(amount) do
+        "$#{amount}"
+      end
+    end)
+  defp simple_parser_ast, do: quote do: (defmodule SimpleParser do
+      def parse_int(str) do
+        Integer.parse(str)
+      end
+    end)
+  defp simple_helper_ast, do: quote do: (
+    defmodule SimpleHelper do
+      def timestamp do
+        DateTime.utc_now()
+      end
+    end
+  )
+  defp simple_utils_ast, do: quote do: (
+    defmodule SimpleUtils do
+      def random_id do
+        :rand.uniform(1000)
+      end
+    end
+  )
   
-  defp user_supervisor_ast, do: quote do: defmodule UserSupervisor, do: use Supervisor
-  defp database_connection_ast, do: quote do: defmodule DatabaseConnection, do: use GenServer
-  defp cache_manager_ast, do: quote do: defmodule CacheManager, do: use GenServer
-  defp notification_service_ast, do: quote do: defmodule NotificationService, do: use GenServer
-  defp email_service_ast, do: quote do: defmodule EmailService, do: use GenServer
-  defp authentication_service_ast, do: quote do: defmodule AuthenticationService, do: use GenServer
-  defp logging_service_ast, do: quote do: defmodule LoggingService, do: use GenServer
-  defp config_manager_ast, do: quote do: defmodule ConfigManager, do: use GenServer
-  defp health_checker_ast, do: quote do: defmodule HealthChecker, do: use GenServer
+  defp user_supervisor_ast, do: quote do: (defmodule UserSupervisor do
+      use Supervisor
+    end)
+  defp database_connection_ast, do: quote do: (defmodule DatabaseConnection do
+      use GenServer
+    end)
+  defp cache_manager_ast, do: quote do: (defmodule CacheManager do
+      use GenServer
+    end)
+  defp notification_service_ast, do: quote do: (defmodule NotificationService do
+      use GenServer
+    end)
+  defp email_service_ast, do: quote do: (defmodule EmailService do
+      use GenServer
+    end)
+  defp authentication_service_ast, do: quote do: (defmodule AuthenticationService do
+      use GenServer
+    end)
+  defp logging_service_ast, do: quote do: (defmodule LoggingService do
+      use GenServer
+    end)
+  defp config_manager_ast, do: quote do: (defmodule ConfigManager do
+      use GenServer
+    end)
+  defp health_checker_ast, do: quote do: (defmodule HealthChecker do
+      use GenServer
+    end)
   
   defp medium_module_ast(i) do
     quote do
@@ -703,15 +757,51 @@ defmodule ElixirAnalyzerDemo.SampleDataManager do
     end
   end
   
-  defp complex_service_ast, do: quote do: defmodule ComplexService, do: def fetch_data(_, _, _), do: {:ok, []}
-  defp complex_repository_ast, do: quote do: defmodule ComplexRepository, do: def get_by_id(_), do: {:ok, %{}}
-  defp complex_validator_ast, do: quote do: defmodule ComplexValidator, do: def validate_index_params(_), do: {:ok, %{}}
-  defp complex_transformer_ast, do: quote do: defmodule ComplexTransformer, do: def transform_for_index(_), do: {:ok, []}
-  defp complex_aggregator_ast, do: quote do: defmodule ComplexAggregator, do: def aggregate(_), do: {:ok, %{}}
-  defp complex_processor_ast, do: quote do: defmodule ComplexProcessor, do: def process(_), do: {:ok, %{}}
-  defp complex_analyzer_ast, do: quote do: defmodule ComplexAnalyzer, do: def analyze(_), do: {:ok, %{}}
-  defp complex_optimizer_ast, do: quote do: defmodule ComplexOptimizer, do: def optimize(_), do: {:ok, %{}}
-  defp complex_scheduler_ast, do: quote do: defmodule ComplexScheduler, do: def schedule(_), do: {:ok, %{}}
+  defp complex_service_ast, do: quote do: (defmodule ComplexService do
+      def fetch_data(_, _, _) do
+        {:ok, []}
+      end
+    end)
+  defp complex_repository_ast, do: quote do: (defmodule ComplexRepository do
+      def get_by_id(_) do
+        {:ok, %{}}
+      end
+    end)
+  defp complex_validator_ast, do: quote do: (defmodule ComplexValidator do
+      def validate_index_params(_) do
+        {:ok, %{}}
+      end
+    end)
+  defp complex_transformer_ast, do: quote do: (defmodule ComplexTransformer do
+      def transform_for_index(_) do
+        {:ok, []}
+      end
+    end)
+  defp complex_aggregator_ast, do: quote do: (defmodule ComplexAggregator do
+      def aggregate(_) do
+        {:ok, %{}}
+      end
+    end)
+  defp complex_processor_ast, do: quote do: (defmodule ComplexProcessor do
+      def process(_) do
+        {:ok, %{}}
+      end
+    end)
+  defp complex_analyzer_ast, do: quote do: (defmodule ComplexAnalyzer do
+      def analyze(_) do
+        {:ok, %{}}
+      end
+    end)
+  defp complex_optimizer_ast, do: quote do: (defmodule ComplexOptimizer do
+      def optimize(_) do
+        {:ok, %{}}
+      end
+    end)
+  defp complex_scheduler_ast, do: quote do: (defmodule ComplexScheduler do
+      def schedule(_) do
+        {:ok, %{}}
+      end
+    end)
   
   defp complex_module_ast(i) do
     quote do
@@ -730,15 +820,51 @@ defmodule ElixirAnalyzerDemo.SampleDataManager do
     end
   end
   
-  defp legacy_spaghetti_ast, do: quote do: defmodule LegacySpaghettiCode, do: def messy_function(_), do: :ok
-  defp legacy_duplicated_ast, do: quote do: defmodule LegacyDuplicatedCode, do: def duplicate1(_), do: :ok
-  defp legacy_long_method_ast, do: quote do: defmodule LegacyLongMethod, do: def very_long_method(_), do: :ok
-  defp legacy_deep_nesting_ast, do: quote do: defmodule LegacyDeepNesting, do: def nested_function(_), do: :ok
-  defp legacy_magic_numbers_ast, do: quote do: defmodule LegacyMagicNumbers, do: def calculate(_), do: 42
-  defp legacy_poor_naming_ast, do: quote do: defmodule LegacyPoorNaming, do: def a(_), do: :ok
-  defp legacy_tight_coupling_ast, do: quote do: defmodule LegacyTightCoupling, do: def coupled(_), do: :ok
-  defp legacy_no_error_handling_ast, do: quote do: defmodule LegacyNoErrorHandling, do: def unsafe(_), do: :ok
-  defp legacy_hardcoded_values_ast, do: quote do: defmodule LegacyHardcodedValues, do: def hardcoded, do: "localhost:3000"
+  defp legacy_spaghetti_ast, do: quote do: (defmodule LegacySpaghettiCode do
+      def messy_function(_) do
+        :ok
+      end
+    end)
+  defp legacy_duplicated_ast, do: quote do: (defmodule LegacyDuplicatedCode do
+      def duplicate1(_) do
+        :ok
+      end
+    end)
+  defp legacy_long_method_ast, do: quote do: (defmodule LegacyLongMethod do
+      def very_long_method(_) do
+        :ok
+      end
+    end)
+  defp legacy_deep_nesting_ast, do: quote do: (defmodule LegacyDeepNesting do
+      def nested_function(_) do
+        :ok
+      end
+    end)
+  defp legacy_magic_numbers_ast, do: quote do: (defmodule LegacyMagicNumbers do
+      def calculate(_) do
+        42
+      end
+    end)
+  defp legacy_poor_naming_ast, do: quote do: (defmodule LegacyPoorNaming do
+      def a(_) do
+        :ok
+      end
+    end)
+  defp legacy_tight_coupling_ast, do: quote do: (defmodule LegacyTightCoupling do
+      def coupled(_) do
+        :ok
+      end
+    end)
+  defp legacy_no_error_handling_ast, do: quote do: (defmodule LegacyNoErrorHandling do
+      def unsafe(_) do
+        :ok
+      end
+    end)
+  defp legacy_hardcoded_values_ast, do: quote do: (defmodule LegacyHardcodedValues do
+      def hardcoded do
+        "localhost:3000"
+      end
+    end)
   
   defp legacy_module_ast(i) do
     quote do
