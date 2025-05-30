@@ -120,7 +120,9 @@ defmodule ElixirAnalyzerDemo do
     
     # Demonstrate cleanup
     IO.puts("🧹 Performing cleanup...")
-    :ok = MemoryManager.cleanup_unused_data(max_age: 60)  # 1 minute
+    {:ok, cleanup_result} = MemoryManager.cleanup_unused_data(max_age: 60)  # 1 minute
+    IO.puts("   - Data removed: #{format_bytes(cleanup_result.data_removed_bytes)}")
+    IO.puts("   - Modules cleaned: #{cleanup_result.modules_cleaned}")
     
     # Show memory stats after cleanup
     {:ok, cleanup_stats} = MemoryManager.monitor_memory_usage()

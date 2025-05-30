@@ -15,6 +15,12 @@ defmodule ElixirAnalyzerDemo.Application do
         monitoring_enabled: get_config(:monitoring_enabled, true)
       ]},
       
+      # Cache Manager
+      {ElixirScope.ASTRepository.MemoryManager.CacheManager, [
+        enabled: get_config(:cache_enabled, true),
+        max_size: get_config(:memory_limit, 512 * 1024 * 1024) * 0.2  # 20% of memory limit
+      ]},
+      
       # Memory Manager with demo-friendly settings
       {ElixirScope.ASTRepository.MemoryManager, [
         monitoring_enabled: get_config(:monitoring_enabled, true),
