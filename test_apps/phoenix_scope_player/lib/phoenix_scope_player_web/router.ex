@@ -17,7 +17,8 @@ defmodule PhoenixScopePlayerWeb.Router do
   scope "/", PhoenixScopePlayerWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    live "/", SessionListLive, :index
+    live "/sessions/:id", PlaybackLive, :show
   end
 
   # Other scopes may use custom stacks.

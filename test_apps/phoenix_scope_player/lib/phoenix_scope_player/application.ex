@@ -8,15 +8,14 @@ defmodule PhoenixScopePlayer.Application do
   @impl true
   def start(_type, _args) do
     children = [
+      # Start the Telemetry supervisor
       PhoenixScopePlayerWeb.Telemetry,
-      {DNSCluster, query: Application.get_env(:phoenix_scope_player, :dns_cluster_query) || :ignore},
+      # Start the PubSub system
       {Phoenix.PubSub, name: PhoenixScopePlayer.PubSub},
-      # Start the Finch HTTP client for sending emails
-      {Finch, name: PhoenixScopePlayer.Finch},
-      # Start a worker by calling: PhoenixScopePlayer.Worker.start_link(arg)
-      # {PhoenixScopePlayer.Worker, arg},
-      # Start to serve requests, typically the last entry
+      # Start the Endpoint (http/https)
       PhoenixScopePlayerWeb.Endpoint
+      # Start a worker by calling: PhoenixScopePlayer.Worker.start_link(arg)
+      # {PhoenixScopePlayer.Worker, arg}
     ]
 
     # See https://hexdocs.pm/elixir/Supervisor.html

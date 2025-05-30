@@ -45,11 +45,11 @@ defmodule PhoenixScopePlayer.DataProvider do
          {:ok, source_code} <- read_json_file(session_dir, "source_code.json") do
       
       IO.puts("Metadata: #{inspect(metadata)}")
-      IO.puts("Events count: #{length(events || [])}")
+      IO.puts("Events count: #{length(events["events"] || [])}")
       
       {:ok, %{
         metadata: metadata,
-        events: events,  # The events are directly in the root of events.json
+        events: events["events"] || [],
         source_code: source_code
       }}
     else
@@ -70,7 +70,7 @@ defmodule PhoenixScopePlayer.DataProvider do
         actual_event_count = case File.read(events_path) do
           {:ok, content} ->
             case Jason.decode(content) do
-              {:ok, events} when is_list(events) -> length(events)
+              {:ok, %{"events" => events}} -> length(events)
               _ -> 0
             end
           _ -> 0

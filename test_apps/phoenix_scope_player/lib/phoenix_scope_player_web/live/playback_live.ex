@@ -5,7 +5,7 @@ defmodule PhoenixScopePlayerWeb.PlaybackLive do
   def mount(%{"id" => session_id}, _session, socket) do
     case DataProvider.get_session_data(session_id) do
       {:ok, session_data} ->
-        events = session_data.events
+        events = session_data["events"] || []
         current_event = List.first(events)
 
         {:ok, assign(socket,
@@ -28,7 +28,7 @@ defmodule PhoenixScopePlayerWeb.PlaybackLive do
 
   def handle_event("next_event", _, socket) do
     %{current_event_index: index, session_data: data} = socket.assigns
-    events = data.events
+    events = data["events"] || []
     next_index = min(index + 1, length(events) - 1)
     
     {:noreply, assign(socket,
@@ -39,7 +39,7 @@ defmodule PhoenixScopePlayerWeb.PlaybackLive do
 
   def handle_event("prev_event", _, socket) do
     %{current_event_index: index, session_data: data} = socket.assigns
-    events = data.events
+    events = data["events"] || []
     prev_index = max(index - 1, 0)
     
     {:noreply, assign(socket,
@@ -53,7 +53,7 @@ defmodule PhoenixScopePlayerWeb.PlaybackLive do
   end
 
   def handle_event("select_file", %{"file" => file}, socket) do
-    content = get_in(socket.assigns.session_data.source_code, [file, "content"])
+    content = get_in(socket.assigns.session_data, ["source_code", "files", file, "content"])
     
     {:noreply, assign(socket,
       current_file: file,
@@ -68,7 +68,7 @@ defmodule PhoenixScopePlayerWeb.PlaybackLive do
         <div class="sm:flex-auto">
           <h1 class="text-base font-semibold leading-6 text-gray-900">Session Playback</h1>
           <p class="mt-2 text-sm text-gray-700">
-            <%= @session_data.metadata["name"] %>
+            <%= @session_data["metadata"]["name"] %>
           </p>
         </div>
         <div class="mt-4 sm:ml-16 sm:mt-0">
@@ -83,32 +83,34 @@ defmodule PhoenixScopePlayerWeb.PlaybackLive do
       </div>
 
       <div class="mt-8 flow-root">
-        <div class="flex items-center space-x-3">
-          <button
-            type="button"
-            class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
-            phx-click="prev_event"
-            disabled={@current_event_index == 0}
-          >
-            <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" />
-            </svg>
-            Previous
-          </button>
-          <button
-            type="button"
-            class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
-            phx-click="next_event"
-            disabled={@current_event_index == @total_events - 1}
-          >
-            Next
-            <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-              <path d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" />
-            </svg>
-          </button>
-        </div>
-        <div class="text-sm text-gray-500">
-          Event <%= @current_event_index + 1 %> of <%= @total_events %>
+        <div class="border-b border-gray-200 pb-5 sm:flex sm:items-center sm:justify-between">
+          <div class="flex items-center space-x-3">
+            <button
+              type="button"
+              class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+              phx-click="prev_event"
+              disabled={@current_event_index == 0}
+            >
+              <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" />
+              </svg>
+              Previous
+            </button>
+            <button
+              type="button"
+              class="inline-flex items-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
+              phx-click="next_event"
+              disabled={@current_event_index == @total_events - 1}
+            >
+              Next
+              <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                <path d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" />
+              </svg>
+            </button>
+          </div>
+          <div class="text-sm text-gray-500">
+            Event <%= @current_event_index + 1 %> of <%= @total_events %>
+          </div>
         </div>
 
         <div class="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -117,7 +119,7 @@ defmodule PhoenixScopePlayerWeb.PlaybackLive do
               <h3 class="text-base font-semibold leading-6 text-gray-900">Source Code</h3>
               <div class="mt-2">
                 <div class="flex space-x-2 mb-2">
-                  <%= for {file, _} <- @session_data.source_code do %>
+                  <%= for {file, _} <- @session_data["source_code"]["files"] || %{} do %>
                     <button
                       type="button"
                       class={"px-2 py-1 text-sm rounded #{if @current_file == file, do: "bg-indigo-600 text-white", else: "bg-gray-100 text-gray-700 hover:bg-gray-200"}"}
@@ -146,30 +148,28 @@ defmodule PhoenixScopePlayerWeb.PlaybackLive do
                   </div>
                   <div class="mb-4">
                     <div class="font-medium text-gray-700">Function</div>
-                    <div class="text-sm text-gray-900"><%= get_in(@current_event, ["data", "module"]) %>.<%= get_in(@current_event, ["data", "function"]) %></div>
+                    <div class="text-sm text-gray-900"><%= @current_event["module"] %>.<%= @current_event["function"] %></div>
                   </div>
-                  <%= if get_in(@current_event, ["data", "args"]) do %>
+                  <%= if @current_event["args"] do %>
                     <div class="mb-4">
                       <div class="font-medium text-gray-700">Arguments</div>
-                      <div class="text-sm text-gray-900"><%= inspect(get_in(@current_event, ["data", "args"])) %></div>
+                      <div class="text-sm text-gray-900"><%= Enum.join(@current_event["args"], ", ") %></div>
                     </div>
                   <% end %>
-                  <%= if get_in(@current_event, ["data", "return_value"]) do %>
+                  <%= if @current_event["return_value"] do %>
                     <div class="mb-4">
                       <div class="font-medium text-gray-700">Return Value</div>
-                      <div class="text-sm text-gray-900"><%= inspect(get_in(@current_event, ["data", "return_value"])) %></div>
+                      <div class="text-sm text-gray-900"><%= @current_event["return_value"] %></div>
                     </div>
                   <% end %>
-                  <%= if get_in(@current_event, ["data", "variables"]) do %>
-                    <div class="mb-4">
-                      <div class="font-medium text-gray-700">Variables</div>
-                      <div class="text-sm text-gray-900">
-                        <%= for {var, value} <- get_in(@current_event, ["data", "variables"]) do %>
-                          <div><span class="font-mono"><%= var %></span>: <%= inspect(value) %></div>
-                        <% end %>
-                      </div>
+                  <div class="mb-4">
+                    <div class="font-medium text-gray-700">Call Stack</div>
+                    <div class="text-sm text-gray-900">
+                      <%= for call <- @current_event["call_stack"] || [] do %>
+                        <div class="pl-4 border-l-2 border-gray-200"><%= call %></div>
+                      <% end %>
                     </div>
-                  <% end %>
+                  </div>
                 <% else %>
                   <div class="text-sm text-gray-500">No event selected</div>
                 <% end %>
